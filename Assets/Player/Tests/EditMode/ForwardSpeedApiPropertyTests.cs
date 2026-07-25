@@ -76,23 +76,20 @@ namespace SubwaySurfers.Player.Tests
                 ? generated.RequestedSpeed
                 : generated.PreviousSpeed;
 
-            Assert.Multiple(() =>
-            {
-                Assert.That(result.Status, Is.EqualTo(expectedAccepted
-                    ? CommandStatus.Accepted
-                    : CommandStatus.Rejected));
-                Assert.That(result.Command, Is.EqualTo(PlayerCommandKind.SetForwardSpeed));
-                Assert.That(result.Reason, Is.EqualTo(expectedAccepted
-                    ? RejectionReason.None
-                    : RejectionReason.InvalidValue));
-                Assert.That(result.RequestedSpeed, Is.EqualTo(generated.RequestedSpeed));
-                Assert.That(result.EffectiveSpeed, Is.EqualTo(expectedEffective));
-                Assert.That(api.ForwardSpeed, Is.EqualTo(expectedEffective),
-                    "The query must expose the effective speed used by the next movement update.");
-                Assert.That(api.ReadForNextMovementUpdate(), Is.EqualTo(expectedEffective),
-                    "An accepted speed must be visible beginning with the next movement update; " +
-                    "a rejected speed must preserve the prior update value.");
-            });
+            Assert.That(result.Status, Is.EqualTo(expectedAccepted
+                ? CommandStatus.Accepted
+                : CommandStatus.Rejected));
+            Assert.That(result.Command, Is.EqualTo(PlayerCommandKind.SetForwardSpeed));
+            Assert.That(result.Reason, Is.EqualTo(expectedAccepted
+                ? RejectionReason.None
+                : RejectionReason.InvalidValue));
+            Assert.That(result.RequestedSpeed, Is.EqualTo(generated.RequestedSpeed));
+            Assert.That(result.EffectiveSpeed, Is.EqualTo(expectedEffective));
+            Assert.That(api.ForwardSpeed, Is.EqualTo(expectedEffective),
+                "The query must expose the effective speed used by the next movement update.");
+            Assert.That(api.ReadForNextMovementUpdate(), Is.EqualTo(expectedEffective),
+                "An accepted speed must be visible beginning with the next movement update; " +
+                "a rejected speed must preserve the prior update value.");
 
             if (expectedAccepted)
             {
@@ -104,14 +101,11 @@ namespace SubwaySurfers.Player.Tests
             Assert.That(diagnostics, Has.Count.EqualTo(1),
                 "Each rejected request must publish exactly one diagnostic.");
             var diagnostic = diagnostics[0];
-            Assert.Multiple(() =>
-            {
-                Assert.That(diagnostic.Severity, Is.EqualTo(DiagnosticSeverity.Error));
-                Assert.That(diagnostic.Code, Is.EqualTo(DiagnosticCode.InvalidValue));
-                Assert.That(diagnostic.Field, Is.EqualTo("ForwardSpeed"));
-                Assert.That(diagnostic.Message, Does.Contain(DiagnosticCategory(generated.Category)).IgnoreCase,
-                    "The diagnostic must identify the rejected numeric category.");
-            });
+            Assert.That(diagnostic.Severity, Is.EqualTo(DiagnosticSeverity.Error));
+            Assert.That(diagnostic.Code, Is.EqualTo(DiagnosticCode.InvalidValue));
+            Assert.That(diagnostic.Field, Is.EqualTo("ForwardSpeed"));
+            Assert.That(diagnostic.Message, Does.Contain(DiagnosticCategory(generated.Category)).IgnoreCase,
+                "The diagnostic must identify the rejected numeric category.");
         }
 
         private static float NextNonNegativeFinite(Random random)

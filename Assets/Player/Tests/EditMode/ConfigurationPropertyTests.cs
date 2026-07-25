@@ -7,6 +7,7 @@ using SubwaySurfers.Player.Contracts;
 using SubwaySurfers.Player.Domain;
 using SubwaySurfers.Player.Tests.Generated;
 using UnityEngine;
+using Random = System.Random;
 
 namespace SubwaySurfers.Player.Tests
 {
@@ -48,7 +49,8 @@ namespace SubwaySurfers.Player.Tests
             {
                 var expectedSource = generated.InvalidFields.Contains(field) ? defaults : generated.Configuration;
                 Assert.That(ConfigurationTestData.Read(expectedSource, field),
-                    Is.EqualTo(ConfigurationTestData.Read(result.EffectiveConfiguration, field)), field);
+                    Is.EqualTo(ConfigurationTestData.Read(result.EffectiveConfiguration, field)),
+                    field.ToString());
             }
         }
 

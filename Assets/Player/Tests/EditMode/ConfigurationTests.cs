@@ -4,6 +4,7 @@ using NUnit.Framework;
 using SubwaySurfers.Player.Configuration;
 using SubwaySurfers.Player.Domain;
 using UnityEngine;
+using Random = System.Random;
 
 namespace SubwaySurfers.Player.Tests
 {
