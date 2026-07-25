@@ -3,33 +3,6 @@ using UnityEngine;
 
 namespace SubwaySurfers.Player.Domain
 {
-    public readonly struct ColliderProfile : IEquatable<ColliderProfile>
-    {
-        public ColliderProfile(float radius, float height, Vector3 center)
-        {
-            Radius = radius;
-            Height = height;
-            Center = center;
-        }
-
-        public float Radius { get; }
-        public float Height { get; }
-        public Vector3 Center { get; }
-
-        public bool Equals(ColliderProfile other)
-        {
-            return Radius.Equals(other.Radius) && Height.Equals(other.Height) && Center.Equals(other.Center);
-        }
-
-        public override bool Equals(object obj) { return obj is ColliderProfile other && Equals(other); }
-        public override int GetHashCode()
-        {
-            unchecked { return ((Radius.GetHashCode() * 397) ^ Height.GetHashCode()) * 397 ^ Center.GetHashCode(); }
-        }
-        public static bool operator ==(ColliderProfile left, ColliderProfile right) { return left.Equals(right); }
-        public static bool operator !=(ColliderProfile left, ColliderProfile right) { return !left.Equals(right); }
-    }
-
     public readonly struct LogicalContactIdentity : IEquatable<LogicalContactIdentity>
     {
         public LogicalContactIdentity(ulong contactId, string environmentObjectId, EnvironmentObjectKind kind)
