@@ -1,4 +1,3 @@
-using SubwaySurfers.Player.Contracts;
 using SubwaySurfers.Player.Domain;
 using UnityEngine;
 
@@ -25,19 +24,18 @@ namespace SubwaySurfers.Player
     }
 
     /// <summary>
-    /// Owns the <see cref="CharacterController"/> capsule: profile application, one combined
-    /// displacement submission per movement update, and the minimal capsule queries the
-    /// movement loop needs. It never decides state.
+    /// Owns the <see cref="CharacterController"/> capsule: one combined displacement submission per
+    /// movement update, and the capsule queries the movement loop needs. Grounding lives in
+    /// <see cref="GroundProbe"/>, and profile application plus the safe-restoration query live in
+    /// <see cref="ColliderProfileApplicator"/>; this component only wires them to the capsule. It
+    /// never decides state.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(CharacterController))]
     public sealed class CharacterControllerMotor : MonoBehaviour, IPlayerMotorSurface
     {
-        private const int QueryBufferLength = 16;
-        private const float MinimumProbeRadius = 0.001f;
-
-        private readonly Collider[] overlapBuffer = new Collider[QueryBufferLength];
         private readonly GroundProbe groundProbe = new GroundProbe();
+        private readonly ColliderProfileApplicator profileApplicator = new ColliderProfileApplicator();
 
         private CharacterController controller;
         private int moveInvocationCount;
@@ -57,12 +55,7 @@ namespace SubwaySurfers.Player
 
         public void ApplyColliderProfile(ColliderProfile profile)
         {
-            var capsule = Controller;
-            if (capsule == null) return;
-
-            capsule.radius = profile.Radius;
-            capsule.height = profile.Height;
-            capsule.center = profile.Center;
+            profileApplicator.Apply(Controller, profile);
         }
 
         public Vector3 Move(Vector3 displacement)
@@ -90,21 +83,8 @@ namespace SubwaySurfers.Player
 
         public bool IsBaselineRestorationSafe(ColliderProfile baselineProfile, int obstructionLayerMask)
         {
-            if (obstructionLayerMask == 0) return true;
-
-            var radius = Mathf.Max(MinimumProbeRadius, baselineProfile.Radius);
-            var overlapCount = Physics.OverlapCapsuleNonAlloc(
-                LowerSphereCenter(baselineProfile, radius),
-                UpperSphereCenter(baselineProfile, radius),
-                radius, overlapBuffer, obstructionLayerMask, QueryTriggerInteraction.Ignore);
-            for (var index = 0; index < overlapCount; index++)
-            {
-                var overlapping = overlapBuffer[index];
-                if (overlapping == null || IsOwnCollider(overlapping)) continue;
-                if (overlapping.GetComponentInParent<IEnvironmentObstruction>() != null) return false;
-            }
-
-            return true;
+            return profileApplicator.IsRestorationSafe(
+                Controller, baselineProfile, obstructionLayerMask);
         }
 
         /// <summary>
@@ -116,26 +96,6 @@ namespace SubwaySurfers.Player
             if (hit == null) return;
 
             groundProbe.RecordContactSample(hit.collider, hit.normal);
-        }
-
-        private bool IsOwnCollider(Collider candidate)
-        {
-            return candidate.transform == transform || candidate.transform.IsChildOf(transform);
-        }
-
-        private Vector3 LowerSphereCenter(ColliderProfile profile, float radius)
-        {
-            return transform.TransformPoint(profile.Center) - transform.up * SphereOffset(profile, radius);
-        }
-
-        private Vector3 UpperSphereCenter(ColliderProfile profile, float radius)
-        {
-            return transform.TransformPoint(profile.Center) + transform.up * SphereOffset(profile, radius);
-        }
-
-        private static float SphereOffset(ColliderProfile profile, float radius)
-        {
-            return Mathf.Max(0f, profile.Height * 0.5f - radius);
         }
     }
 }
