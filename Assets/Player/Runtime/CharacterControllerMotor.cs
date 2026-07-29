@@ -38,6 +38,8 @@ namespace SubwaySurfers.Player
         private readonly ColliderProfileApplicator profileApplicator = new ColliderProfileApplicator();
 
         private CharacterController controller;
+        private EnvironmentContactAdapter contactAdapter;
+        private bool contactAdapterResolved;
         private int moveInvocationCount;
 
         public Vector3 Position { get { return transform.position; } }
@@ -89,13 +91,37 @@ namespace SubwaySurfers.Player
 
         /// <summary>
         /// Unity reports each collider the capsule touched during the last displacement. The probe
-        /// keeps those normals so overlapping geometry can be judged by its real orientation.
+        /// keeps those normals so overlapping geometry can be judged by its real orientation, and the
+        /// contact adapter receives the contact point so a published contact carries the world-space
+        /// position of the touch. The hit never decides whether a contact exists; the adapter's overlap
+        /// sample does.
         /// </summary>
         private void OnControllerColliderHit(ControllerColliderHit hit)
         {
             if (hit == null) return;
 
             groundProbe.RecordContactSample(hit.collider, hit.normal);
+
+            var adapter = ContactAdapter;
+            if (adapter != null) adapter.RecordContactPosition(hit.collider, hit.point);
+        }
+
+        /// <summary>
+        /// The optional contact adapter on this player, resolved once. A player without one still
+        /// moves and probes; only contact positions are then unavailable.
+        /// </summary>
+        private EnvironmentContactAdapter ContactAdapter
+        {
+            get
+            {
+                if (!contactAdapterResolved)
+                {
+                    TryGetComponent(out contactAdapter);
+                    contactAdapterResolved = true;
+                }
+
+                return contactAdapter;
+            }
         }
     }
 }
