@@ -3,4 +3,6 @@
   <Project Path="sc.vegetationspawner.runtime.csproj" />
   <Project Path="Assembly-CSharp-Editor.csproj" />
   <Project Path="sc.vegetationspawner.editor.csproj" />
+  <Project Path="Assembly-CSharp-Editor.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
 </Solution>
