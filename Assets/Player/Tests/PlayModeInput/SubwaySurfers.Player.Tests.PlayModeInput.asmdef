@@ -1,0 +1,21 @@
+{
+  "name": "SubwaySurfers.Player.Tests.PlayModeInput",
+  "rootNamespace": "SubwaySurfers.Player.Tests",
+  "references": [
+    "SubwaySurfers.Player.Runtime",
+    "Unity.InputSystem",
+    "Unity.InputSystem.TestFramework"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}
