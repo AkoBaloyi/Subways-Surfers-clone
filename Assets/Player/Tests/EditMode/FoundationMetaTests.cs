@@ -20,11 +20,36 @@ namespace SubwaySurfers.Player.Tests
             Assert.That(Application.unityVersion, Is.EqualTo("6000.5.4f1"));
         }
 
+        /// <summary>
+        /// Installed Unity package assemblies the runtime is permitted to reference. The runtime owns
+        /// the Unity-side input adapter, so it must compile against the installed Input System package
+        /// that supplies the action asset it reads. Nothing else widens: a test assembly, a production
+        /// Rachel or Lucky assembly, or any reference outside this allowlist still fails.
+        /// </summary>
+        private static readonly string[] AllowedRuntimeReferences = { "Unity.InputSystem" };
+
         [Test]
         public void RuntimeAssemblyHasNoProductionOrTestReferences_Requirements_1_3_1_4_1_6_14_12()
         {
             var definition = ReadAssemblyDefinition("Runtime/SubwaySurfers.Player.Runtime.asmdef");
-            Assert.That(definition.references ?? Array.Empty<string>(), Is.Empty);
+            var references = definition.references ?? Array.Empty<string>();
+            var forbidden = references
+                .Where(reference => !AllowedRuntimeReferences.Contains(reference, StringComparer.Ordinal))
+                .ToArray();
+            Assert.That(forbidden, Is.Empty,
+                "The runtime assembly may reference only the allowlisted installed Unity package " +
+                "assemblies it needs to consume engine-side input (" +
+                string.Join(", ", AllowedRuntimeReferences) +
+                "). Every other reference - and in particular any test assembly or any production " +
+                "Rachel or Lucky assembly - stays forbidden so the runtime remains independently " +
+                "compilable and free of production coupling. Unexpected references:\n" +
+                string.Join("\n", forbidden));
+            Assert.That(references.Any(reference =>
+                reference.IndexOf("Test", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                reference.IndexOf("Rachel", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                reference.IndexOf("Lucky", StringComparison.OrdinalIgnoreCase) >= 0), Is.False,
+                "The runtime assembly must never reference a test assembly or a production Rachel or " +
+                "Lucky assembly:\n" + string.Join("\n", references));
             Assert.That(definition.includePlatforms ?? Array.Empty<string>(), Is.Empty);
             Assert.That(definition.optionalUnityReferences ?? Array.Empty<string>(), Is.Empty);
             Assert.That(definition.name, Is.EqualTo("SubwaySurfers.Player.Runtime"));

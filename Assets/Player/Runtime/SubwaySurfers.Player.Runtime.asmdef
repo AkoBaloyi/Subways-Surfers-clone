@@ -1,7 +1,9 @@
 {
   "name": "SubwaySurfers.Player.Runtime",
   "rootNamespace": "SubwaySurfers.Player",
-  "references": [],
+  "references": [
+    "Unity.InputSystem"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
