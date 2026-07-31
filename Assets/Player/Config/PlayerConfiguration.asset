@@ -18,8 +18,8 @@ MonoBehaviour:
     gravityAcceleration: 20
     laneChangeDuration: 0.2
     slideDuration: 0.8
-    lanePositionTolerance: 0.15
-    laneCenters: {x: -0.6344, y: 0.0902, z: 0.8186}
+    lanePositionTolerance: 0.25
+    laneCenters: {x: -2.542, y: 0.356, z: 3.27}
     baselineRadius: 0.5
     baselineHeight: 2
     baselineCenter: {x: 0, y: 1, z: 0}

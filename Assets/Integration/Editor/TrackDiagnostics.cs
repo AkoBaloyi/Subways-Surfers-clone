@@ -26,6 +26,16 @@ namespace SubwaySurfers.Integration.EditorTools
             var sb = new StringBuilder();
             sb.AppendLine("=== TRACK AND PLAYER TRUTH ===");
             sb.AppendLine("scene: " + UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
+            sb.AppendLine("play mode: " + Application.isPlaying);
+            if (!Application.isPlaying)
+            {
+                sb.AppendLine("NOTE: not in play mode, so Awake has not run and the player has not");
+                sb.AppendLine("      validated its configuration yet. Configuration status will read");
+                sb.AppendLine("      Fatal with simulation disabled and zero diagnostics, and the");
+                sb.AppendLine("      reported configuration will be the safe defaults rather than the");
+                sb.AppendLine("      authored asset. That is an artefact of edit mode, not a defect.");
+                sb.AppendLine("      Enter play mode and run this again to judge the configuration.");
+            }
             sb.AppendLine();
 
             ReportNamedObjects(sb);
