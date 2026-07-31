@@ -248,22 +248,61 @@ Validation entries are appended after each test execution with the test identifi
 - Not verified: the Unity Test Framework was not run, so `EveryAcceptanceCriterionHasResolvableEvidence_Requirements_12_2_13_5_16_8` was not re-executed. It is still expected to fail, now for two identified reasons: the 32 `Pending` criteria, and the ten Play Mode-only targets the Edit Mode-only resolver cannot see.
 - Evidence location: this log entry and `Assets/Player/Documentation/TraceabilityManifest.txt`.
 
+## Validation Results — Task Group 11 scene and harness
+
+- Test identifier: `SubwaySurfers.Player.Tests.EditMode`, full suite, run in the Unity Editor Test Runner in single-run mode.
+- Acceptance criteria: every criterion mapped to an `Automated` entry whose target resolves in the Edit Mode assembly.
+- Unity version: 6000.5.4f1. NUnit engine 3.5.0.0.
+- Run window: 2026-07-31 18:28:25Z to 18:28:29Z, duration 3.6357202 s, platform `EditMode`.
+- Result: 242 total, 241 passed, 1 failed, 0 inconclusive, 0 skipped. All 17 correctness properties passed.
+- The single failure is `FoundationMetaTests.EveryAcceptanceCriterionHasResolvableEvidence_Requirements_12_2_13_5_16_8`, red by design. It named 21 criteria, every one a `Pending` manifest row: 12.14-12.17, 13.1-13.4, 13.6-13.9, 13.13-13.15, 16.2-16.4, 16.6, 16.7, 16.9. `EvidenceResolves` returns false for any `Pending` row regardless of the path it names, so the reported "references missing evidence" text describes the row kind, not a broken path.
+- Also confirmed by this run: `AssertEveryPlayerTestAssemblyIsLoaded` passed, so the resolver now spans the Edit Mode, Play Mode, and Play Mode Input assemblies, and every Requirement 11 target resolved to a real loaded method.
+- Evidence location: Unity Test Runner result XML at `%LOCALAPPDATA%Low/DefaultCompany/Subways Surfers clone/TestResults.xml` on the machine that ran it. Not copied into the repository.
+
+- Test identifier: `SubwaySurfers.Player.Tests.PlayMode` and `SubwaySurfers.Player.Tests.PlayModeInput`, full suites, run in the Unity Editor Test Runner in single-run mode.
+- Acceptance criteria: Requirement 11 scene and harness criteria, plus the motor, grounding, jump, slide, contact adapter, camera, prefab reload, and input adapter criteria mapped to Play Mode targets.
+- Unity version: 6000.5.4f1. NUnit engine 3.5.0.0.
+- Run window: 2026-07-31 18:34:59Z to 18:35:11Z, duration 11.6538931 s, platform `PlayMode`.
+- Result: 59 total, 58 passed, 1 failed. `SubwaySurfers.Player.Tests.PlayMode` 53 total, 52 passed, 1 failed. `SubwaySurfers.Player.Tests.PlayModeInput` 6 of 6 passed.
+- `PlayerTestScenePlayModeTests`: 7 cases, 6 passed. Observed passing on first real execution were the three-lane inventory (11.2), the jump, slide, and overhead-ceiling fixtures (11.3, 11.4, 11.5), the identified obstacle and coin doubles (11.6, 11.13), the player, camera, and animation wiring (11.1, 11.7), the harness controls and ordered event log (11.8, 11.9, 11.10), and the absence of production systems (11.11, 11.13).
+- Failure: `PlayerTestScenePlayModeTests.HarnessResetControlIsRepeatable_Requirement_11_12`, at attempt 1. Reported position `(0, 0, 0)` against an expected `(0, 0.0499999523, 0.159999937)`, distance 0.167630479 against a 0.05 bound.
+- Diagnosis: a defect in the test fixture, not in reset. `PlayerMovementLoop` captures `startPosition = motor.Position` at initialization and reset restored that pose exactly. The test had sampled its baseline from `facade.transform.position` after `LoadScene` yielded two frames, by which point one `FixedUpdate` had run. Both drift components are fully accountable: 8 x 0.02 = 0.16 of forward running on z, and 0.05 of upward ground-contact resolution on y. Because it failed on attempt 1, no cumulative drift was ever demonstrated.
+- Correction applied: the test now establishes its baseline with an initial reset, which is defined to produce `Player_Initial_State`, and compares position and rotation for exact equality on each repeat rather than a tolerance against a drifted sample.
+- Not verified: the corrected test has not been executed. Requirement 11 criteria 11.12 and the Task 11 subtasks stay open until a Play Mode re-run is observed. The correction compiles clean under editor diagnostics, which is not a test result.
+- Evidence location: Unity Test Runner result XML at `%LOCALAPPDATA%Low/DefaultCompany/Subways Surfers clone/TestResults.xml` on the machine that ran it. Not copied into the repository.
+- Current artifacts: runtime at `Assets/Player/Runtime`, validation doubles and harness at `Assets/Player/Validation`, scene at `Assets/Player/Scenes/PlayerTestScene.unity`, prefab at `Assets/Player/Prefabs/Player.prefab`, configuration at `Assets/Player/Config/PlayerConfiguration.asset`. GDD revision: _does not exist_. TDD revision: _does not exist_. Manual Test Checklist revision: _does not exist_.
+
 ## Unresolved Actions
 
 These are open and must not be reported as done.
 
 1. **Manual Test Checklist does not exist.** Criteria 12.14, 12.15, 12.16, 12.17, and 11.12 stay unevidenced until the checklist is authored, and 12.17 additionally requires execution by a named human tester on a real date. Authoring the checklist does not satisfy it.
 2. **GDD and TDD sections do not exist.** Criteria 13.1, 13.2, 13.3, 13.4, 13.6, 13.7, 13.8, 13.9, 13.14, and 13.15 stay unevidenced.
-3. **`PlayerTestScene` does not exist.** `Assets/Player/Scenes` contains only `README.md`, so criteria 11.1 through 11.7, 11.10, 11.12, and 11.13 stay unevidenced. Criterion 11.13, confinement of environment test doubles to validation assets under `Assets/Player`, has no automated check at all.
-4. **`Player.prefab` does not exist.** `Assets/Player/Prefabs` contains only `README.md`, so criterion 12.12 is only partly covered: safe default fallback is tested, prefab validation diagnostics are not.
-5. **No review has been performed.** Criteria 13.13, 16.2, 16.3, 16.4, 16.6, and 16.9 require an independent reviewer, a Rachel contract and ownership review, and a Lucky identity, surface, obstruction, and ownership review. Reviewer name: _not assigned_. Review date: _not scheduled_. Disposition: _none recorded_. These must be entered by real humans and must not be inferred.
-6. **Criterion 16.7 is unmet.** A full passing suite plus required manual scenarios in Unity 6000.5.4f1 has not been achieved.
-7. **`AcceptanceCriteriaCatalog.txt` is stale.** It declares `9:8`, `11:12`, and `15:9` while the requirements define 9.10, 11.13, and 15.10. The manifest enumerates all three, but the meta-test will not demand them until the catalog is corrected. The catalog was outside the edit scope of this task, so it was left unchanged.
-8. **Two prefab-oriented test files are in flight and intentionally unmapped.** `Assets/Player/Tests/EditMode/PrefabConfigurationSerializationTests.cs` and `Assets/Player/Tests/PlayMode/PrefabSerializationReloadPlayModeTests.cs` appeared under `Assets/Player/Tests` while this manifest was being written. They annotate 11.1, 11.7, 12.12, 12.13, and several Requirement 15 criteria, they have no `.meta` yet, and they depend on a player prefab and configuration asset that do not exist. They were not mapped, because a test that cannot pass today is not evidence. Fold them into the manifest once the prefab and configuration assets exist and a real passing run is observed.
-9. **The traceability meta-test resolver only enumerates the Edit Mode assembly.** `EveryAcceptanceCriterionHasResolvableEvidence_Requirements_12_2_13_5_16_8` resolves `Automated` targets against `typeof(FoundationMetaTests).Assembly`, so the ten criteria whose only evidence is a Play Mode or Play Mode Input test cannot resolve: 5.13, 9.1, 9.5, 9.6, 9.10, 11.8, 11.9, 12.6, 12.7, and 12.10. The real test names are recorded in the manifest; extending the resolver to the Play Mode assemblies is a test-side change and was outside the edit scope of this task.
+3. **The corrected reset repeatability test has not been re-run.** `PlayerTestScenePlayModeTests.HarnessResetControlIsRepeatable_Requirement_11_12` failed on 2026-07-31 because of a fixture defect, which has been corrected in place. Criterion 11.12 and Task 11 subtasks 11.1 through 11.4 stay open until a Play Mode run is observed with all seven scene cases passing. The correction is unverified; compiling is not passing.
+4. **No review has been performed.** Criteria 13.13, 16.2, 16.3, 16.4, 16.6, and 16.9 require an independent reviewer, a Rachel contract and ownership review, and a Lucky identity, surface, obstruction, and ownership review. Reviewer name: _not assigned_. Review date: _not scheduled_. Disposition: _none recorded_. These must be entered by real humans and must not be inferred.
+5. **Criterion 16.7 is unmet.** A full passing suite plus required manual scenarios in Unity 6000.5.4f1 has not been achieved. The Edit Mode suite still carries its one by-design traceability failure, and the Play Mode suite has one unverified correction outstanding.
+6. **No test result artifact is captured in the repository.** Both 2026-07-31 runs were observed through the Unity Test Runner and their result XML stayed in the per-user application data folder. Copying a result artifact under `Assets/Player/Documentation` for a full passing run remains an open item.
+7. **`ProjectSettings/SceneTemplateSettings.json` is new and untracked.** Unity created it as a side effect of authoring `PlayerTestScene`. `ProjectSettings/**` is protected, no pre-existing setting was overwritten, and this feature did not edit it deliberately. Left in place pending a decision by the repository owner.
+
+### Closed since the previous revision
+
+These were recorded as open and are now resolved by observed repository state. They must not be re-reported as open.
+
+- `PlayerTestScene` did not exist. It now exists at `Assets/Player/Scenes/PlayerTestScene.unity` with validation doubles and a harness under `Assets/Player/Validation`, and Requirement 11 criteria moved from `Pending` to `Automated`.
+- `Player.prefab` did not exist. It now exists at `Assets/Player/Prefabs/Player.prefab`, and the prefab serialization and reload suites were observed passing on 2026-07-31.
+- `AcceptanceCriteriaCatalog.txt` was stale. It now declares `9:10`, `11:13`, and `15:10`, so the meta-test enumerates all 188 criteria.
+- The two prefab-oriented test files were unmapped. Both are now mapped in the manifest and were observed passing.
+- The traceability resolver enumerated only the Edit Mode assembly. It now reflects over every loaded `SubwaySurfers.Player.Tests*` assembly and guards that all three are loaded, so the ten Play Mode-only targets resolve.
 
 ## Handoff Status
 
-**Not Ready.**
+**Not Ready.** Last assessed 2026-07-31.
 
-32 of 188 acceptance criteria have no authentic evidence, no independent review, no Rachel review, and no Lucky review has been performed, the Manual Test Checklist has not been authored or executed, and the GDD, TDD, `PlayerTestScene`, and player prefab do not exist.
+21 of 188 acceptance criteria have no authentic evidence. Every one of them needs an authored document or a real human, and none can be closed by writing another test:
+
+- 12.14 through 12.17 need the Manual Test Checklist, and 12.17 additionally needs execution by a named human tester on a real date.
+- 13.1 through 13.4, 13.6 through 13.9, and 13.14 need the GDD and TDD sections.
+- 13.13, 13.15, 16.2 through 16.4, 16.6, and 16.9 need independent, Rachel, and Lucky review evidence.
+- 16.7 needs a fully passing suite plus executed manual scenarios.
+
+One further gate is outstanding on the automated side: the corrected `HarnessResetControlIsRepeatable_Requirement_11_12` has not been re-run, so Task 11 is not complete even though six of its seven scene cases were observed passing.
