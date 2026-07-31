@@ -270,7 +270,14 @@ Validation entries are appended after each test execution with the test identifi
 - Correction applied: the test now establishes its baseline with an initial reset, which is defined to produce `Player_Initial_State`, and compares position and rotation for exact equality on each repeat rather than a tolerance against a drifted sample.
 - Not verified: the corrected test has not been executed. Requirement 11 criteria 11.12 and the Task 11 subtasks stay open until a Play Mode re-run is observed. The correction compiles clean under editor diagnostics, which is not a test result.
 - Evidence location: Unity Test Runner result XML at `%LOCALAPPDATA%Low/DefaultCompany/Subways Surfers clone/TestResults.xml` on the machine that ran it. Not copied into the repository.
-- Current artifacts: runtime at `Assets/Player/Runtime`, validation doubles and harness at `Assets/Player/Validation`, scene at `Assets/Player/Scenes/PlayerTestScene.unity`, prefab at `Assets/Player/Prefabs/Player.prefab`, configuration at `Assets/Player/Config/PlayerConfiguration.asset`. GDD revision: _does not exist_. TDD revision: _does not exist_. Manual Test Checklist revision: _does not exist_.
+- Current artifacts: runtime at `Assets/Player/Runtime`, validation doubles and harness at `Assets/Player/Validation`, Edit Mode suite at `Assets/Player/Tests/EditMode`, Play Mode suites at `Assets/Player/Tests/PlayMode` and `Assets/Player/Tests/PlayModeInput`, scene at `Assets/Player/Scenes/PlayerTestScene.unity`, prefab at `Assets/Player/Prefabs/Player.prefab`, configuration at `Assets/Player/Config/PlayerConfiguration.asset`. GDD: `Assets/Player/Documentation/GameDesignDocument.md`. TDD: `Assets/Player/Documentation/TechnicalDesignDocument.md`. Manual Test Checklist: `Assets/Player/Documentation/ManualTestChecklist.md`, authored and not executed.
+
+- Test identifier: `SubwaySurfers.Player.Tests.PlayMode` and `SubwaySurfers.Player.Tests.PlayModeInput`, re-run after the `HarnessResetControlIsRepeatable_Requirement_11_12` fixture correction.
+- Acceptance criteria: 11.1 through 11.13, plus the motor, grounding, jump, slide, contact adapter, camera, prefab reload, and input adapter criteria mapped to Play Mode targets.
+- Unity version: 6000.5.4f1.
+- Result: reported fully passing by the developer who ran it, ako-baloyi, on 2026-07-31. All Play Mode cases passed, including the corrected reset repeatability case.
+- Provenance: this is a developer attestation, not an agent-observed run. The result XML was not pasted or captured, so the total, duration, and per-case timings for this specific re-run are not recorded here and must not be invented. The preceding entry holds the last set of numbers this log observed directly.
+- Evidence location: Unity Test Runner session on the developer's machine. Capturing a result artifact into the repository for a full passing run remains an open item.
 
 ## Unresolved Actions
 
@@ -278,7 +285,7 @@ These are open and must not be reported as done.
 
 1. **Manual Test Checklist does not exist.** Criteria 12.14, 12.15, 12.16, 12.17, and 11.12 stay unevidenced until the checklist is authored, and 12.17 additionally requires execution by a named human tester on a real date. Authoring the checklist does not satisfy it.
 2. **GDD and TDD sections do not exist.** Criteria 13.1, 13.2, 13.3, 13.4, 13.6, 13.7, 13.8, 13.9, 13.14, and 13.15 stay unevidenced.
-3. **The corrected reset repeatability test has not been re-run.** `PlayerTestScenePlayModeTests.HarnessResetControlIsRepeatable_Requirement_11_12` failed on 2026-07-31 because of a fixture defect, which has been corrected in place. Criterion 11.12 and Task 11 subtasks 11.1 through 11.4 stay open until a Play Mode run is observed with all seven scene cases passing. The correction is unverified; compiling is not passing.
+3. **No result artifact is captured for the passing Play Mode run.** The 2026-07-31 re-run is recorded as a developer attestation without numbers. A machine-readable result file from a full passing Edit Mode and Play Mode run should be captured under `Assets/Player/Documentation` before handoff, so criterion 16.7 rests on an artifact rather than on recollection.
 4. **No review has been performed.** Criteria 13.13, 16.2, 16.3, 16.4, 16.6, and 16.9 require an independent reviewer, a Rachel contract and ownership review, and a Lucky identity, surface, obstruction, and ownership review. Reviewer name: _not assigned_. Review date: _not scheduled_. Disposition: _none recorded_. These must be entered by real humans and must not be inferred.
 5. **Criterion 16.7 is unmet.** A full passing suite plus required manual scenarios in Unity 6000.5.4f1 has not been achieved. The Edit Mode suite still carries its one by-design traceability failure, and the Play Mode suite has one unverified correction outstanding.
 6. **No test result artifact is captured in the repository.** Both 2026-07-31 runs were observed through the Unity Test Runner and their result XML stayed in the per-user application data folder. Copying a result artifact under `Assets/Player/Documentation` for a full passing run remains an open item.
@@ -298,11 +305,15 @@ These were recorded as open and are now resolved by observed repository state. T
 
 **Not Ready.** Last assessed 2026-07-31.
 
-21 of 188 acceptance criteria have no authentic evidence. Every one of them needs an authored document or a real human, and none can be closed by writing another test:
+8 of 188 acceptance criteria have no authentic evidence. Every one of the eight requires a real human. None can be closed by writing code, a test, or another document, and none may be closed by inference:
 
-- 12.14 through 12.17 need the Manual Test Checklist, and 12.17 additionally needs execution by a named human tester on a real date.
-- 13.1 through 13.4, 13.6 through 13.9, and 13.14 need the GDD and TDD sections.
-- 13.13, 13.15, 16.2 through 16.4, 16.6, and 16.9 need independent, Rachel, and Lucky review evidence.
-- 16.7 needs a fully passing suite plus executed manual scenarios.
+- **12.17** needs a named tester executing the `ManualTestChecklist.md` scenarios and recording their name, the date, and what they observed. The checklist is authored; authoring it is not executing it.
+- **13.13** needs an independent requirement review, performed by a contributor other than the one who produced the artifacts.
+- **16.2, 16.3, 16.4** need review evidence: independent review, Rachel contract and ownership review, and Lucky identity, surface, obstruction, and ownership review.
+- **16.6** needs a raised review finding to have been resolved, with a real owner and resolution date.
+- **16.9** needs the readiness-time ownership preservation record, which only exists once readiness is genuine.
+- **16.7** needs a fully passing suite plus those executed manual scenarios.
 
-One further gate is outstanding on the automated side: the corrected `HarnessResetControlIsRepeatable_Requirement_11_12` has not been re-run, so Task 11 is not complete even though six of its seven scene cases were observed passing.
+Reviewer name: _not assigned_. Review date: _not scheduled_. Disposition: _none recorded_.
+
+The automated side is otherwise clear. The Play Mode suites were reported fully passing on 2026-07-31 after the reset fixture correction, and the Edit Mode suite carries only its one by-design traceability failure, which closes as the remaining `Pending` rows close.

@@ -173,9 +173,9 @@
 12.11|Automated|SubwaySurfers.Player.Tests.ResetCompletenessPropertyTests.ResetIsCompleteAndRepeatSafe_Property14_Requirements_9_7_9_8_10_1_Through_10_11_And_12_11|Also ResetOrderingAndRejectionTests.ResetCompletesBeforeTheNextMovementUpdate_Requirements_10_7_10_8_10_9_10_10_10_11_And_12_11; ResetOrderingAndRejectionTests.AcceptedResetFromEveryEligibleSourceState_Requirements_6_7_6_8_7_10_7_11_10_1_10_9_12_11_14_6_14_8
 12.12|Automated|SubwaySurfers.Player.Tests.PrefabConfigurationSerializationTests.ConfiguredValuesAndSafeDefaultsAreValidConfigurations_Requirements_12_12_15_1_15_2_15_4_15_5|Also PrefabConfigurationSerializationTests.PrefabRootCarriesRequiredComponentsAndNoProductionComponents_Requirements_11_1_11_7_12_12_15_8_15_9; PrefabConfigurationSerializationTests.PrefabCharacterControllerMatchesConfiguredBaselineCapsule_Requirements_11_1_12_12_15_1_15_2; PrefabConfigurationSerializationTests.ConfigurationAssetCapsulesAreValidAndNested_Requirements_12_12_15_1_15_2_15_5; PrefabConfigurationSerializationTests.PrefabSerializedReferencesAreAssigned_Requirements_11_1_11_7_12_12_15_1_15_6_15_8; PrefabConfigurationSerializationTests.PrefabExposesVisualChildAndCameraTarget_Requirements_11_1_12_12_15_8; PrefabSerializationReloadPlayModeTests.InvalidSerializedFieldIsRepairedBeforeFirstMovementUpdate_Requirements_12_12_15_1_15_3_15_4_15_5_15_8; PrefabSerializationReloadPlayModeTests.ValidationCompletesBeforeFirstMovementUpdate_Requirements_12_12_15_1_15_2_15_8; PrefabSerializationReloadPlayModeTests.SerializedReferencesResolveAfterPrefabStyleReload_Requirements_11_1_11_7_12_12_12_13_15_1
 12.13|Automated|SubwaySurfers.Player.Tests.FoundationMetaTests.PlayerAssetsHaveMetaPairs_Requirement_12_13|Also FoundationMetaTests.TestAssembliesReferenceOnlyPlayerRuntime_Requirements_11_11_12_13; EventHubExampleTests.EventSourceRuntimeSurfaceHasZeroConcreteRachelDependency
-12.14|Pending|Assets/Player/Documentation|No evidence. The Manual_Test_Checklist has not been authored, so no manual scenario carries acceptance criterion ids.
-12.15|Pending|Assets/Player/Documentation|No evidence. The Manual_Test_Checklist has not been authored, so no setup steps, control inputs, observable evidence, or expected results are defined.
-12.16|Pending|Assets/Player/Documentation|No evidence. The required lane-boundary, request-order, invalid-action, overhead-obstruction, failure, animation-receiver failure, event-payload, camera-convergence, prefab-fallback, and repeated-reset scenarios do not exist.
+12.14|DocumentedRationale|Assets/Player/Documentation/ManualTestChecklist.md|Every scenario MT-01 through MT-16 carries an explicit Criteria line naming the acceptance criterion ids it covers.
+12.15|DocumentedRationale|Assets/Player/Documentation/ManualTestChecklist.md|A Common setup section defines the repeatable session setup, and every scenario states its steps as control inputs with an expected observable result per step. A How to record a result section defines the result schema.
+12.16|DocumentedRationale|Assets/Player/Documentation/ManualTestChecklist.md|Required scenarios are present: lane-boundary MT-03, request-order MT-04, invalid-action MT-08, overhead-obstruction MT-07, failure MT-09, animation-receiver failure MT-13, event-payload MT-11, camera-convergence MT-12, prefab-fallback MT-14, and repeated-reset MT-10.
 12.17|Pending|Assets/Player/Documentation|No evidence. No manual scenario has been executed, so no Unity version, criterion ids, result, date, tester, or defect reference has been recorded. A real human tester is required.
 12.18|Automated|SubwaySurfers.Player.Tests.RejectedCommandPreservationPropertyTests.RepeatedOrInvalidActionsPreserveCompleteSnapshot_Property8|Also StateCommandTableExampleTests.FailedPreservesTransformAndZeroVelocityAcrossRejectedCommands; StateCommandTableExampleTests.ResettingRejectsEveryPublicStateCommandWithoutMutationOrEvents; Generated.GeneratedInfrastructureTests.FailureReportsSeedCaseReplayInputMinimizedInputAndCause_Requirements_12_2_12_18; Generated.GeneratedInfrastructureTests.SequenceShrinkersAreDeterministicAndStrictlyReduceInputs_Requirements_12_3_12_8_12_18
 # Requirement 13: Traceable GDD, TDD, and Development Log
@@ -193,7 +193,7 @@
 13.12|DocumentedRationale|Assets/Player/Documentation/DevelopmentLog.md|Each dated decision entry records the affected owner, the contract element, the compatibility impact, and the acceptance criterion ids. Contract growth to date is additive and no breaking field or meaning change has occurred.
 13.13|Pending|Assets/Player/Documentation/DevelopmentLog.md|No evidence. No independent requirement review has been performed, so there is no Review_Evidence to record. A named human reviewer is required.
 13.14|DocumentedRationale|Assets/Player/Documentation/GameDesignDocument.md|The Behavior to criterion map table maps every described behavior and scope boundary in the section to its acceptance criterion identifiers.
-13.15|Pending|Assets/Player/Documentation/DevelopmentLog.md|No evidence. The Development Log now names the runtime, validation, scene, prefab, and configuration artifact locations, but GDD, TDD, and Manual_Test_Checklist revisions still cannot be identified because those three artifacts do not exist.
+13.15|DocumentedRationale|Assets/Player/Documentation/DevelopmentLog.md|The Validation Results entries name the evidence location for each recorded run, and the current artifacts list names the runtime, validation, scene, prefab, and configuration locations plus the GDD at GameDesignDocument.md, the TDD at TechnicalDesignDocument.md, and the Manual Test Checklist at ManualTestChecklist.md.
 # Requirement 14: Integration Contracts for Rachel and Lucky
 14.1|Automated|SubwaySurfers.Player.Tests.ContractSignatureCompilationTests.CommandAndQueryInterfacesExposeExactPublicSignatures_Requirements_14_1_14_2_14_9_14_10|Also ContractPayloadImmutabilityTests.CommandResultsSnapshotsAndDiagnosticsAreImmutable_Requirements_14_1_14_2_14_12; ContractTests.PublicConsumersCompileAgainstCompletePlayerOwnedContracts_Requirements_1_2_1_6_14_1_14_2_14_3
 14.2|Automated|SubwaySurfers.Player.Tests.ContractQueryBehaviorTests.PublicQueriesReturnCurrentValuesWithoutConcreteFacadeAccess_Requirements_14_2_14_9_14_10|Also ContractSignatureCompilationTests.CommandAndQueryInterfacesExposeExactPublicSignatures_Requirements_14_1_14_2_14_9_14_10; ContractPayloadImmutabilityTests.CommandResultsSnapshotsAndDiagnosticsAreImmutable_Requirements_14_1_14_2_14_12; ContractTests.PublicConsumersCompileAgainstCompletePlayerOwnedContracts_Requirements_1_2_1_6_14_1_14_2_14_3
@@ -232,16 +232,19 @@
 #
 # Coverage summary as of 2026-07-31
 #   Criteria enumerated: 188 (Requirements 1 through 16 as defined in requirements.md)
-#   Mapped to real evidence: 176 (163 Automated, 13 DocumentedRationale)
-#   Pending with an explicit reason: 12
-#   Pending by requirement: 12.14-12.17; 13.13, 13.15; 16.2-16.4, 16.6, 16.7, 16.9
+#   Mapped to real evidence: 180 (163 Automated, 17 DocumentedRationale)
+#   Pending with an explicit reason: 8
+#   Pending by requirement: 12.17; 13.13; 16.2-16.4, 16.6, 16.7, 16.9
 #   13.1-13.4 and 13.14 closed against Assets/Player/Documentation/GameDesignDocument.md.
 #   13.6-13.9 closed against Assets/Player/Documentation/TechnicalDesignDocument.md. 13.5 keeps its
 #     stronger Automated evidence; the TDD supplies the mapping the meta-test enforces.
-#   Of the 12 remaining, only 12.14-12.16 and 13.15 can be closed by authoring the Manual Test
-#     Checklist. The other 8 need a real human: 12.17 needs a named tester executing scenarios on a
-#     real date, 13.13 and 16.2-16.4 and 16.6 and 16.9 need independent, Rachel, and Lucky review
-#     evidence, and 16.7 needs a fully passing suite plus those executed scenarios.
+#   12.14-12.16 closed against Assets/Player/Documentation/ManualTestChecklist.md, which is authored
+#     and explicitly not executed. 13.15 closed against the Development Log artifact list.
+#   ALL 8 REMAINING CRITERIA REQUIRE A REAL HUMAN. None can be closed by writing code, a test, or a
+#     document. 12.17 needs a named tester executing the checklist scenarios on a real date. 13.13
+#     and 16.2-16.4 and 16.6 and 16.9 need independent, Rachel, and Lucky review evidence with real
+#     reviewer identities, dates, and dispositions. 16.7 needs a fully passing suite plus those
+#     executed manual scenarios. Do not close any of these by inference.
 #   Every remaining Pending criterion needs an authored document or a real human reviewer. None can
 #     be closed by writing another test.
 #   Requirement 11 moved from Pending to Automated once PlayerTestScene, the validation doubles, and
