@@ -108,6 +108,7 @@ namespace SubwaySurfers.Player.Tests
         [Test]
         public void EveryAcceptanceCriterionHasResolvableEvidence_Requirements_12_2_13_5_16_8()
         {
+            AssertEveryPlayerTestAssemblyIsLoaded();
             var expected = ReadCriterionCatalog();
             var evidence = ReadManifest();
             var unresolved = new List<string>();
@@ -125,6 +126,28 @@ namespace SubwaySurfers.Player.Tests
             Assert.That(unresolved, Is.Empty,
                 "Traceability remains intentionally incomplete until criterion tests, checklist scenarios, " +
                 "or non-testable rationales are implemented:\n" + string.Join("\n", unresolved));
+        }
+
+        /// <summary>
+        /// Guards the automated-evidence inventory. Without this check a criterion mapped to a Play Mode
+        /// test would resolve or fail purely on whether that assembly happened to be loaded, which would
+        /// make traceability depend on run configuration instead of on real evidence.
+        /// </summary>
+        private static void AssertEveryPlayerTestAssemblyIsLoaded()
+        {
+            var loaded = PlayerTestAssemblies().Select(assembly => assembly.GetName().Name).ToArray();
+            var required = new[]
+            {
+                "SubwaySurfers.Player.Tests.EditMode",
+                "SubwaySurfers.Player.Tests.PlayMode",
+                "SubwaySurfers.Player.Tests.PlayModeInput"
+            };
+            var absent = required.Where(name => !loaded.Contains(name, StringComparer.Ordinal)).ToArray();
+            Assert.That(absent, Is.Empty,
+                "Automated evidence is resolved by reflection over every player test assembly. These " +
+                "assemblies are not loaded, so criteria mapped to their tests cannot be resolved " +
+                "honestly:\n" + string.Join("\n", absent) +
+                "\nLoaded player test assemblies:\n" + string.Join("\n", loaded));
         }
 
         private static void AssertTestAssembly(string relativePath, bool editorOnly)
@@ -206,16 +229,40 @@ namespace SubwaySurfers.Player.Tests
             return result;
         }
 
+        /// <summary>
+        /// Player test assemblies whose methods may be named as automated evidence. Play Mode suites
+        /// carry the only evidence for engine-dependent criteria, so resolution must span every player
+        /// test assembly rather than the Edit Mode assembly alone. Resolution stays reflective: a name
+        /// counts only when a real loaded method carries it, never because a source file mentions it.
+        /// </summary>
+        private static Assembly[] PlayerTestAssemblies()
+        {
+            return AppDomain.CurrentDomain.GetAssemblies()
+                .Where(assembly => assembly.GetName().Name
+                    .StartsWith("SubwaySurfers.Player.Tests", StringComparison.Ordinal))
+                .ToArray();
+        }
+
+        private static HashSet<string> automatedEvidenceInventory;
+
+        private static HashSet<string> AutomatedEvidenceInventory()
+        {
+            if (automatedEvidenceInventory != null) return automatedEvidenceInventory;
+
+            var inventory = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var assembly in PlayerTestAssemblies())
+                foreach (var type in assembly.GetTypes())
+                    foreach (var method in type.GetMethods(BindingFlags.Instance | BindingFlags.Static |
+                                                           BindingFlags.Public | BindingFlags.NonPublic))
+                        inventory.Add(type.FullName + "." + method.Name);
+
+            automatedEvidenceInventory = inventory;
+            return automatedEvidenceInventory;
+        }
+
         private static bool EvidenceResolves(Evidence evidence)
         {
-            if (evidence.Kind == "Automated")
-            {
-                return typeof(FoundationMetaTests).Assembly.GetTypes()
-                    .SelectMany(type => type.GetMethods(BindingFlags.Instance | BindingFlags.Static |
-                                                        BindingFlags.Public | BindingFlags.NonPublic)
-                        .Select(method => type.FullName + "." + method.Name))
-                    .Contains(evidence.Target);
-            }
+            if (evidence.Kind == "Automated") return AutomatedEvidenceInventory().Contains(evidence.Target);
 
             if (evidence.Kind == "DocumentedRationale")
                 return !string.IsNullOrWhiteSpace(evidence.Rationale) &&

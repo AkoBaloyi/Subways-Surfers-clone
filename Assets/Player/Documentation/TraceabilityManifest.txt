@@ -9,21 +9,21 @@
 # The rationale column of an Automated entry lists the additional real tests that also cover the
 # criterion. The primary target is the single test the meta-test resolves.
 #
-# Known limitations recorded on purpose, not worked around:
-#   (a) The meta-test resolver enumerates only the Edit Mode test assembly. Entries whose primary
-#       target is a Play Mode or Play Mode Input test are marked "Play Mode assembly" in the
-#       rationale and will not resolve until the resolver also enumerates those assemblies.
-#       Affected criteria: 5.13, 9.1, 9.5, 9.6, 9.10, 11.8, 11.9, 12.6, 12.7, 12.10.
-#   (b) Two test files appeared under Assets/Player/Tests while this manifest was being written:
-#       EditMode/PrefabConfigurationSerializationTests.cs and
-#       PlayMode/PrefabSerializationReloadPlayModeTests.cs. They annotate 11.1, 11.7, 12.12, 12.13
-#       and several Requirement 15 criteria, they have no .meta yet, and they depend on a player
-#       prefab and configuration asset that do not exist. They are deliberately not mapped here:
-#       they cannot pass today, so mapping them would record evidence that does not exist. Fold them
-#       in once the prefab and configuration assets exist and a real passing run is observed.
-#   (c) AcceptanceCriteriaCatalog.txt still declares 9:8, 11:12 and 15:9 while the requirements
-#       specification defines 9.10, 11.13 and 15.10. Those three criteria are enumerated below
-#       but the catalog does not yet ask the meta-test to check them.
+# Resolved limitations, kept for history:
+#   (a) The resolver previously enumerated only the Edit Mode test assembly, so criteria whose only
+#       evidence is a Play Mode test could not resolve. It now reflects over every loaded
+#       SubwaySurfers.Player.Tests assembly and asserts all three are loaded, so 5.13, 9.1, 9.5,
+#       9.6, 9.10, 11.8, 11.9, 12.6, 12.7 and 12.10 resolve against their real Play Mode tests.
+#   (b) EditMode/PrefabConfigurationSerializationTests.cs and
+#       PlayMode/PrefabSerializationReloadPlayModeTests.cs were withheld from this manifest while
+#       the player prefab and configuration asset did not exist. Both assets now exist, both suites
+#       were executed, and both passed, so 12.12 is mapped to them.
+#   (c) AcceptanceCriteriaCatalog.txt declared 9:8, 11:12 and 15:9 while the requirements
+#       specification defines 9.10, 11.13 and 15.10. The catalog now declares 9:10, 11:13 and 15:10,
+#       so the meta-test checks all 188 criteria.
+#
+# Remaining Pending entries are genuinely unevidenced, not resolver artifacts. They require
+# PlayerTestScene, the GDD and TDD sections, the manual checklist, and real human review evidence.
 #
 # Requirement 1: Ownership and Scope
 1.1|Automated|SubwaySurfers.Player.Tests.FoundationMetaTests.SupportedUnityVersionMatchesSpecification_Requirement_1_1|
@@ -131,7 +131,7 @@
 9.7|Automated|SubwaySurfers.Player.Tests.ResetCompletenessPropertyTests.ResetIsCompleteAndRepeatSafe_Property14_Requirements_9_7_9_8_10_1_Through_10_11_And_12_11|Also CameraFollowPlayModeTests.ResetRestoresConfiguredPoseAndClearsSmoothingState_Requirements_9_7_9_8_And_12_10
 9.8|Automated|SubwaySurfers.Player.Tests.ResetCompletenessPropertyTests.ResetIsCompleteAndRepeatSafe_Property14_Requirements_9_7_9_8_10_1_Through_10_11_And_12_11|Also CameraFollowPlayModeTests.ResetRestoresConfiguredPoseAndClearsSmoothingState_Requirements_9_7_9_8_And_12_10
 9.9|Automated|SubwaySurfers.Player.Tests.CameraConvergencePropertyTests.ZeroDistanceAndZeroTimeSamplesPreserveCameraPosition_Requirement_9_9|Also CameraConvergencePropertyTests.CameraConvergenceIsNonOvershootingAndBounded_Property13_Requirements_9_2_9_3_9_4_And_9_9; CameraConvergencePropertyTests.AdvanceRejectsInvalidElapsedTimeWithoutMutation_Requirements_9_2_9_9; CameraFollowPlayModeTests.PositiveTimeFramesConvergeAndZeroTimeFramesPreserveError_Requirements_9_2_9_3_9_9_And_12_10
-9.10|Automated|SubwaySurfers.Player.Tests.CameraFollowPlayModeTests.ChangingTargetsContinueConvergingWithoutOvershoot_Requirements_9_3_9_10_And_12_10|Play Mode assembly only. No Edit Mode test credits 9.10, and AcceptanceCriteriaCatalog.txt still declares only eight criteria for Requirement 9.
+9.10|Automated|SubwaySurfers.Player.Tests.CameraFollowPlayModeTests.ChangingTargetsContinueConvergingWithoutOvershoot_Requirements_9_3_9_10_And_12_10|Play Mode assembly only. No Edit Mode test credits 9.10, so this Play Mode test is the sole evidence.
 # Requirement 10: Deterministic Player Reset
 10.1|Automated|SubwaySurfers.Player.Tests.ResetCompletenessPropertyTests.ResetIsCompleteAndRepeatSafe_Property14_Requirements_9_7_9_8_10_1_Through_10_11_And_12_11|Also ResetOrderingAndRejectionTests.LedgerRecordsRequestIdBeforeAnyMutation_Requirements_10_1_10_8_10_12_14_6_14_7_14_8; ResetOrderingAndRejectionTests.AcceptedResetFromEveryEligibleSourceState_Requirements_6_7_6_8_7_10_7_11_10_1_10_9_12_11_14_6_14_8
 10.2|Automated|SubwaySurfers.Player.Tests.ResetCompletenessPropertyTests.ResetIsCompleteAndRepeatSafe_Property14_Requirements_9_7_9_8_10_1_Through_10_11_And_12_11|Also ResetOrderingAndRejectionTests.AtomicSequenceOrdersStartedResettingRestorationRunningCompleted_Requirements_6_7_6_8_7_10_7_11_10_2_Through_10_7_And_10_12
@@ -171,7 +171,7 @@
 12.9|Automated|SubwaySurfers.Player.Tests.AnimationAdapterExampleTests.EveryPlayerStateMapsToItsOwnConfiguredAnimationCommand|Also AnimationAdapterExampleTests.OnePublishedTransitionIssuesExactlyOneReceiverCallInThePublicationFrame; ReceiverReplacementSwapsTheReferenceWithoutReplayOrStateMutation; AbsentReceiverProducesOneAbsentDiagnosticPerAttemptedCommand; UnmappedPlayerStateProducesOneUnavailableDiagnosticPerAttemptedCommand; RejectingReceiverProducesOneRejectionDiagnosticPerAttemptedCommand; ThrowingReceiverProducesOneExceptionDiagnosticPerAttemptedCommand
 12.10|Automated|SubwaySurfers.Player.Tests.CameraFollowPlayModeTests.PositiveTimeFramesConvergeAndZeroTimeFramesPreserveError_Requirements_9_2_9_3_9_9_And_12_10|Play Mode assembly only. Also DerivesInitialOffsetFromConfiguredPoses_Requirements_9_1_And_12_10; TargetFollowsPlayerThroughLaneJumpSlideAndFailed_Requirements_9_5_9_6_And_12_10; ChangingTargetsContinueConvergingWithoutOvershoot_Requirements_9_3_9_10_And_12_10; FixedTargetSettlesWithinConfiguredDuration_Requirements_9_4_And_12_10; SerializedFacadeReferenceResolvesAcrossPrefabStyleReload_Requirements_9_1_9_5_And_12_10; ResetRestoresConfiguredPoseAndClearsSmoothingState_Requirements_9_7_9_8_And_12_10
 12.11|Automated|SubwaySurfers.Player.Tests.ResetCompletenessPropertyTests.ResetIsCompleteAndRepeatSafe_Property14_Requirements_9_7_9_8_10_1_Through_10_11_And_12_11|Also ResetOrderingAndRejectionTests.ResetCompletesBeforeTheNextMovementUpdate_Requirements_10_7_10_8_10_9_10_10_10_11_And_12_11; ResetOrderingAndRejectionTests.AcceptedResetFromEveryEligibleSourceState_Requirements_6_7_6_8_7_10_7_11_10_1_10_9_12_11_14_6_14_8
-12.12|Pending|Assets/Player/Prefabs|Partial only, so recorded as pending. Safe default configuration fallback is covered by ConfigurationTests and ConfigurationPropertyTests, but no test covers Player_Prefab validation diagnostics because Assets/Player/Prefabs contains only README.md and no prefab exists yet.
+12.12|Automated|SubwaySurfers.Player.Tests.PrefabConfigurationSerializationTests.ConfiguredValuesAndSafeDefaultsAreValidConfigurations_Requirements_12_12_15_1_15_2_15_4_15_5|Also PrefabConfigurationSerializationTests.PrefabRootCarriesRequiredComponentsAndNoProductionComponents_Requirements_11_1_11_7_12_12_15_8_15_9; PrefabConfigurationSerializationTests.PrefabCharacterControllerMatchesConfiguredBaselineCapsule_Requirements_11_1_12_12_15_1_15_2; PrefabConfigurationSerializationTests.ConfigurationAssetCapsulesAreValidAndNested_Requirements_12_12_15_1_15_2_15_5; PrefabConfigurationSerializationTests.PrefabSerializedReferencesAreAssigned_Requirements_11_1_11_7_12_12_15_1_15_6_15_8; PrefabConfigurationSerializationTests.PrefabExposesVisualChildAndCameraTarget_Requirements_11_1_12_12_15_8; PrefabSerializationReloadPlayModeTests.InvalidSerializedFieldIsRepairedBeforeFirstMovementUpdate_Requirements_12_12_15_1_15_3_15_4_15_5_15_8; PrefabSerializationReloadPlayModeTests.ValidationCompletesBeforeFirstMovementUpdate_Requirements_12_12_15_1_15_2_15_8; PrefabSerializationReloadPlayModeTests.SerializedReferencesResolveAfterPrefabStyleReload_Requirements_11_1_11_7_12_12_12_13_15_1
 12.13|Automated|SubwaySurfers.Player.Tests.FoundationMetaTests.PlayerAssetsHaveMetaPairs_Requirement_12_13|Also FoundationMetaTests.TestAssembliesReferenceOnlyPlayerRuntime_Requirements_11_11_12_13; EventHubExampleTests.EventSourceRuntimeSurfaceHasZeroConcreteRachelDependency
 12.14|Pending|Assets/Player/Documentation|No evidence. The Manual_Test_Checklist has not been authored, so no manual scenario carries acceptance criterion ids.
 12.15|Pending|Assets/Player/Documentation|No evidence. The Manual_Test_Checklist has not been authored, so no setup steps, control inputs, observable evidence, or expected results are defined.
@@ -218,7 +218,7 @@
 15.7|Automated|SubwaySurfers.Player.Tests.ConfigurationTests.InvalidFieldDiagnosticIdentifiesConstraintAndDocumentedFallback_Requirements_15_3_15_7_15_8|
 15.8|Automated|SubwaySurfers.Player.Tests.ConfigurationTests.InvalidFieldDiagnosticIdentifiesConstraintAndDocumentedFallback_Requirements_15_3_15_7_15_8|Also ConfigurationTests.InvalidSafeFallbackProducesFatalStatusAndDisablesSimulation_Requirements_15_4_15_5_15_8; ConfigurationTests.ValidConfigurationIsPreservedAndExposesValidStatus_Requirements_15_1_15_2_15_8_15_9
 15.9|Automated|SubwaySurfers.Player.Tests.ConfigurationTests.MissingRequiredReferencesUseFallbackAndAbsentAnimationReceiverIsNonFatal_Requirements_8_8_15_3_15_6_15_9|Also ConfigurationTests.ValidConfigurationIsPreservedAndExposesValidStatus_Requirements_15_1_15_2_15_8_15_9
-15.10|Automated|SubwaySurfers.Player.Tests.ConfigurationTests.PostStartInvalidFieldAppliesFallbackAndHaltsBeforeNextUpdate_Requirement_15_10|AcceptanceCriteriaCatalog.txt still declares only nine criteria for Requirement 15, so the meta-test does not yet demand this entry even though the test exists.
+15.10|Automated|SubwaySurfers.Player.Tests.ConfigurationTests.PostStartInvalidFieldAppliesFallbackAndHaltsBeforeNextUpdate_Requirement_15_10|Sole evidence for the post-start fallback-then-halt path. Executed and passing in the Edit Mode suite.
 # Requirement 16: Reviewable Cross-Team Handoff
 16.1|Automated|SubwaySurfers.Player.Tests.HandoffReadinessPropertyTests.HandoffReadinessIsAnExactEvidencePredicate_Property17_Requirements_16_1_16_5_And_16_8|Also HandoffReadinessPropertyTests.EmptyRequiredCriteriaAndEvidenceAreReady_Requirements_16_1_16_8; HandoffReadinessPropertyTests.MissingEvidenceIsNotReady_Requirements_16_1_16_8; HandoffReadinessPropertyTests.DuplicateEvidenceCannotReplaceMissingCriterion_Requirements_16_1_16_8
 16.2|Pending|Assets/Player/Documentation/DevelopmentLog.md|No evidence. No Independent_Reviewer has reviewed the review outputs, so no per-criterion Review_Evidence or finding exists. Reviewer name, date, and disposition must be entered by a real human.
@@ -232,10 +232,10 @@
 #
 # Coverage summary as of 2026-07-31
 #   Criteria enumerated: 188 (Requirements 1 through 16 as defined in requirements.md)
-#   Mapped to real evidence: 156 (152 Automated, 4 DocumentedRationale)
-#   Pending with an explicit reason: 32
-#   Pending by requirement: 11.1-11.7, 11.10, 11.12, 11.13; 12.12, 12.14-12.17;
+#   Mapped to real evidence: 157 (153 Automated, 4 DocumentedRationale)
+#   Pending with an explicit reason: 31
+#   Pending by requirement: 11.1-11.7, 11.10, 11.12, 11.13; 12.14-12.17;
 #     13.1-13.4, 13.6-13.9, 13.13-13.15; 16.2-16.4, 16.6, 16.7, 16.9
-#   Automated entries whose primary target lives in a Play Mode assembly and therefore cannot be
-#     resolved by the current Edit Mode-only resolver: 5.13, 9.1, 9.5, 9.6, 9.10, 11.8, 11.9,
-#     12.6, 12.7, 12.10
+#   Automated entries whose primary target lives in a Play Mode assembly, now resolved because the
+#     meta-test reflects over every loaded player test assembly: 5.13, 9.1, 9.5, 9.6, 9.10, 11.8,
+#     11.9, 12.6, 12.7, 12.10
