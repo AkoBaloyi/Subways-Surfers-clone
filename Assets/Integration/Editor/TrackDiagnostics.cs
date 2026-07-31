@@ -182,6 +182,16 @@ namespace SubwaySurfers.Integration.EditorTools
             sb.AppendLine("  motor track basis = " +
                           (motor == null ? "NO MOTOR" : V(motor.TrackBasis.eulerAngles)));
 
+            // Outside play mode the effective configuration is the safe defaults, which are identical
+            // across assets and therefore say nothing about which asset is assigned. Read the
+            // serialized reference directly so the assignment is visible without entering play mode.
+            var serialized = new SerializedObject(facade);
+            var assetProperty = serialized.FindProperty("configurationAsset");
+            sb.AppendLine("  assigned configurationAsset = " +
+                          (assetProperty == null || assetProperty.objectReferenceValue == null
+                              ? "NONE - the facade will fall back to safe defaults"
+                              : assetProperty.objectReferenceValue.name));
+
             var cc = facade.GetComponent<CharacterController>();
             if (cc != null)
             {
