@@ -198,8 +198,69 @@ namespace SubwaySurfers.Integration.EditorTools
                 sb.AppendLine("  CharacterController radius=" + F(cc.radius) +
                               " height=" + F(cc.height) + " center=" + V(cc.center) +
                               " isGrounded=" + cc.isGrounded);
+                ReportCapsuleOverlaps(sb, facade, cc);
             }
             sb.AppendLine();
+        }
+
+        /// <summary>
+        /// Lists geometry the player capsule currently intersects.
+        ///
+        /// A capsule spawned inside a collider is depenetrated by Unity along the shortest escape route,
+        /// which on a track laid out along X means being shoved sideways on Z until it clears or jams.
+        /// That reads as the player mysteriously drifting off the lanes, so it is worth measuring rather
+        /// than inferring: anything listed here is geometry the player is standing inside, not on.
+        /// </summary>
+        private static void ReportCapsuleOverlaps(
+            StringBuilder sb, PlayerControllerFacade facade, CharacterController cc)
+        {
+            var centre = facade.transform.TransformPoint(cc.center);
+            var half = Mathf.Max(0f, cc.height * 0.5f - cc.radius);
+            var up = facade.transform.up * half;
+            var top = centre + up;
+            var bottom = centre - up;
+
+            var hits = Physics.OverlapCapsule(bottom, top, cc.radius, ~0,
+                QueryTriggerInteraction.Ignore);
+
+            var offenders = 0;
+            sb.AppendLine("  capsule world centre = " + V(centre) +
+                          "  segment " + V(bottom) + " to " + V(top));
+            foreach (var hit in hits)
+            {
+                if (hit == null) continue;
+                if (hit.transform.IsChildOf(facade.transform)) continue;
+
+                offenders++;
+                if (offenders <= 12)
+                {
+                    sb.AppendLine("    INTERSECTING: " + hit.gameObject.name +
+                                  " (" + hit.GetType().Name + ") at " + V(hit.bounds.center) +
+                                  " size " + V(hit.bounds.size));
+                }
+            }
+
+            sb.AppendLine("  colliders intersecting the capsule: " + offenders +
+                          (offenders == 0
+                              ? "  (clear, so depenetration is not moving the player)"
+                              : "  <-- the player is spawned INSIDE geometry and will be pushed out"));
+
+            // How far above the nearest surface the capsule's feet sit. Negative means the feet are
+            // below the surface, which is the penetration case.
+            RaycastHit ground;
+            if (Physics.Raycast(centre, Vector3.down, out ground, 50f, ~0,
+                    QueryTriggerInteraction.Ignore))
+            {
+                var feet = facade.transform.position.y;
+                sb.AppendLine("  nearest surface below centre: " + ground.collider.gameObject.name +
+                              " at y=" + F(ground.point.y) +
+                              "  feet y=" + F(feet) +
+                              "  clearance=" + F(feet - ground.point.y));
+            }
+            else
+            {
+                sb.AppendLine("  no surface found within 50 units below the capsule centre");
+            }
         }
 
         private static void ReportWiring(StringBuilder sb)

@@ -24,6 +24,12 @@ namespace SubwaySurfers.Integration.EditorTools
         private const float TrackYawDegrees = 90f;
 
         /// <summary>
+        /// Gap left between the capsule's feet and the measured surface. Small enough to settle in a
+        /// step or two, large enough that the capsule never starts intersecting the surface it stands on.
+        /// </summary>
+        private const float SpawnClearance = 0.15f;
+
+        /// <summary>
         /// Fallback pose and camera rig, matching what TEMP_AutoRunner and its child camera used, for
         /// the case where the temporary runner has already been deleted from the scene.
         /// </summary>
@@ -73,13 +79,35 @@ namespace SubwaySurfers.Integration.EditorTools
         {
             Undo.RecordObject(facade.transform, "Place player");
 
-            var pose = temp == null ? ReferencePlayerPosition : temp.transform.position;
+            var reference = temp == null ? ReferencePlayerPosition : temp.transform.position;
+
+            // TEMP_AutoRunner had no capsule, so it could sit embedded in the train geometry without
+            // consequence. A CharacterController cannot: Unity depenetrates an overlapping capsule along
+            // the shortest escape route, which on an X-forward track shoves the player sideways on Z and
+            // off the lanes entirely. So the lane and distance come from the reference, while the height
+            // is measured against the actual surface and left with a little clearance to settle onto.
+            var pose = reference;
+            var probeOrigin = new Vector3(reference.x, reference.y + 20f, reference.z);
+            RaycastHit surface;
+            if (Physics.Raycast(probeOrigin, Vector3.down, out surface, 60f, ~0,
+                    QueryTriggerInteraction.Ignore))
+            {
+                pose = new Vector3(reference.x, surface.point.y + SpawnClearance, reference.z);
+                report.AppendLine("  surface under the start found on '" +
+                                  surface.collider.gameObject.name + "' at y=" +
+                                  surface.point.y.ToString("F3"));
+            }
+            else
+            {
+                report.AppendLine("  WARNING: no surface found under the start pose, using the " +
+                                  "reference height unchanged");
+            }
+
             facade.transform.position = pose;
             facade.transform.rotation = Quaternion.identity;
-            report.AppendLine("  player placed at " + pose +
-                              (temp == null
-                                  ? " (recorded TEMP_AutoRunner pose)"
-                                  : " (read from TempAutoPlayer)"));
+            report.AppendLine("  player placed at " + pose + ", lane and distance from " +
+                              (temp == null ? "the recorded TEMP_AutoRunner pose" : "TempAutoPlayer") +
+                              ", height measured so the capsule starts clear of geometry");
         }
 
         private static void ParentCameraLikeTempRunner(
