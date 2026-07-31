@@ -57,6 +57,15 @@ namespace SubwaySurfers.Integration
                  "layer, so the player can be grounded on environment geometry that predates the marker.")]
         [SerializeField] private bool markGroundAsRunningSurface = true;
 
+        [Tooltip("Seconds between marking passes over geometry near the player. The track spawns new " +
+                 "segments as the player advances and those clones carry no running-surface marker, so " +
+                 "a single pass at startup leaves the player running onto unmarked ground.")]
+        [SerializeField] private float markRefreshInterval = 0.4f;
+
+        [Tooltip("Radius around the player searched for unmarked ground on each refresh. Large enough " +
+                 "to cover track spawned ahead, small enough to stay cheap.")]
+        [SerializeField] private float markRefreshRadius = 60f;
+
         [Tooltip("Colliders with this tag are given an Obstacle identity so contacts raise hit events.")]
         [SerializeField] private string obstacleTag = "Obstacle";
 
@@ -71,10 +80,16 @@ namespace SubwaySurfers.Integration
         [SerializeField] private bool logSummary = true;
 
         private readonly HashSet<string> handledResetIds = new HashSet<string>();
+
+        /// <summary>Reused buffer so the repeating marking pass allocates nothing per refresh.</summary>
+        private readonly Collider[] nearbyGround = new Collider[256];
+
         private bool subscribed;
         private int resetCounter;
         private int identityCounter;
         private float lastAppliedSpeed = -1f;
+        private float nextMarkRefreshTime;
+        private int totalSurfacesMarked;
 
         private void Awake()
         {
@@ -131,6 +146,22 @@ namespace SubwaySurfers.Integration
         private void Update()
         {
             if (player == null) return;
+
+            // Keep marking the ground ahead. Grounding requires a running-surface marker, and the track
+            // manager spawns segments continuously, so surfaces the player has not reached yet do not
+            // exist at startup. Without this the player runs onto unmarked track, grounding fails, and
+            // the settling displacement carries it down through the geometry.
+            if (markGroundAsRunningSurface && Time.time >= nextMarkRefreshTime)
+            {
+                nextMarkRefreshTime = Time.time + Mathf.Max(0.05f, markRefreshInterval);
+                var added = MarkGroundNearPlayer();
+                if (added > 0 && logSummary)
+                {
+                    totalSurfacesMarked += added;
+                    Debug.Log("Marked " + added + " newly spawned running surfaces near the player, " +
+                              totalSurfacesMarked + " since the last startup pass.", this);
+                }
+            }
 
             var manager = GameManager.Instance;
             if (manager == null) return;
@@ -353,6 +384,33 @@ namespace SubwaySurfers.Integration
             }
 
             return wired;
+        }
+
+        /// <summary>
+        /// Marks unmarked ground within reach of the player, using a non-allocating overlap so it can run
+        /// several times a second without churn. Scanning near the player rather than the whole scene
+        /// keeps the cost proportional to what the player can actually stand on next.
+        /// </summary>
+        private int MarkGroundNearPlayer()
+        {
+            var mask = player.EffectiveConfiguration.GroundLayerMask;
+            var count = Physics.OverlapSphereNonAlloc(
+                player.transform.position, markRefreshRadius, nearbyGround, mask,
+                QueryTriggerInteraction.Ignore);
+
+            var marked = 0;
+            for (var index = 0; index < count; index++)
+            {
+                var collider = nearbyGround[index];
+                if (collider == null || collider.isTrigger) continue;
+                if (collider.GetComponent<IRunningSurface>() != null) continue;
+                if (collider.GetComponentInParent<PlayerControllerFacade>() != null) continue;
+
+                collider.gameObject.AddComponent<MvpRunningSurface>();
+                marked++;
+            }
+
+            return marked;
         }
 
         private int MarkGroundColliders()
