@@ -5,21 +5,31 @@ using UnityEngine;
 namespace SubwaySurfers.Integration.EditorTools
 {
     /// <summary>
-    /// Performs the scene wiring the MVP needs, in one step.
+    /// Wires the MVP scene by copying the setup that already worked.
     ///
-    /// Every value is measured from the scene rather than hard-coded: the player start comes from the
-    /// middle rail marker, and the camera offset comes from the configured pose relative to that start.
-    /// Hand-applying this list across several passes kept leaving one item undone, and a missing item
-    /// usually looks like a controller bug rather than missing wiring.
+    /// TEMP_AutoRunner drove this scene successfully with a very plain arrangement: the player at a
+    /// specific pose on the middle rail, translating along world +X, with the camera parented to it at a
+    /// fixed offset and yawed to look down the track. That arrangement is the reference. Rather than
+    /// deriving poses from rail geometry and imposing a smoothing camera, this reads the temporary
+    /// runner's own transform and reproduces it for the real player.
     ///
-    /// Everything is registered with Undo, so a single Undo reverts the whole operation, and nothing is
-    /// saved unless you save the scene.
+    /// Where the real controller differs is only in how displacement is produced: the motor's track yaw
+    /// maps its domain forward onto world +X, which is the same direction TEMP_AutoRunner translated.
+    ///
+    /// Everything is one Undo group and the scene is left unsaved.
     /// </summary>
     public static class MvpSceneSetup
     {
         private const string GameplayConfigurationName = "GameplayTrackConfiguration";
         private const float TrackYawDegrees = 90f;
-        private const float FootClearance = 0.08f;
+
+        /// <summary>
+        /// Fallback pose and camera rig, matching what TEMP_AutoRunner and its child camera used, for
+        /// the case where the temporary runner has already been deleted from the scene.
+        /// </summary>
+        private static readonly Vector3 ReferencePlayerPosition = new Vector3(-76.170f, 2.993f, -0.241f);
+        private static readonly Vector3 ReferenceCameraLocalPosition = new Vector3(-4.470f, 1.430f, 0.030f);
+        private static readonly Vector3 ReferenceCameraLocalEuler = new Vector3(0f, 90f, 0f);
 
         [MenuItem("Tools/Integration/Set Up MVP Scene")]
         public static void SetUp()
@@ -34,59 +44,100 @@ namespace SubwaySurfers.Integration.EditorTools
                 return;
             }
 
-            var middle = FindByName("MiddleRailMarker");
-            if (middle == null)
-            {
-                EditorUtility.DisplayDialog("MVP Setup",
-                    "No MiddleRailMarker in the scene, so the player start cannot be measured.",
-                    "OK");
-                return;
-            }
-
             Undo.SetCurrentGroupName("Set Up MVP Scene");
             var group = Undo.GetCurrentGroup();
             var report = new System.Text.StringBuilder();
-            report.AppendLine("MVP scene setup:");
+            report.AppendLine("MVP scene setup, copied from the TEMP_AutoRunner arrangement:");
 
-            PlacePlayer(facade, middle.transform.position, report);
+            var temp = FindByName("TempAutoPlayer");
+            PlacePlayerLikeTempRunner(facade, temp, report);
             AssignGameplayConfiguration(facade, report);
             SetMotorYaw(facade, report);
-            DetachAndWireCamera(facade, report);
+            ParentCameraLikeTempRunner(facade, temp, report);
             EnsureBridge(report);
             PointTrackManagerAtPlayer(facade, report);
-            DisableTempPlayer(report);
+            DisableTempPlayer(temp, report);
 
             Undo.CollapseUndoOperations(group);
-            EditorSceneManagerMarkDirty();
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
+                UnityEngine.SceneManagement.SceneManager.GetActiveScene());
 
             report.AppendLine();
-            report.AppendLine("Scene is wired but NOT saved. Press Play to test, then save if you are happy.");
+            report.AppendLine("Scene wired but NOT saved. Press Play, then save if you are happy.");
             report.AppendLine("One Undo reverts all of it.");
             Debug.Log(report.ToString());
         }
 
-        private static void PlacePlayer(
-            PlayerControllerFacade facade, Vector3 middleLane, System.Text.StringBuilder report)
+        private static void PlacePlayerLikeTempRunner(
+            PlayerControllerFacade facade, GameObject temp, System.Text.StringBuilder report)
         {
             Undo.RecordObject(facade.transform, "Place player");
 
-            // The capsule's centre sits one unit above the transform with a height of two, so the feet
-            // are at the transform's own height. Standing the transform just above the rail surface lets
-            // the ground probe find support on the first step instead of starting inside the geometry.
-            var start = new Vector3(middleLane.x, middleLane.y + FootClearance, middleLane.z);
-            facade.transform.position = start;
-            report.AppendLine("  player moved to " + start + " (middle rail, measured)");
+            var pose = temp == null ? ReferencePlayerPosition : temp.transform.position;
+            facade.transform.position = pose;
+            facade.transform.rotation = Quaternion.identity;
+            report.AppendLine("  player placed at " + pose +
+                              (temp == null
+                                  ? " (recorded TEMP_AutoRunner pose)"
+                                  : " (read from TempAutoPlayer)"));
+        }
+
+        private static void ParentCameraLikeTempRunner(
+            PlayerControllerFacade facade, GameObject temp, System.Text.StringBuilder report)
+        {
+            var camera = Object.FindAnyObjectByType<Camera>();
+            if (camera == null)
+            {
+                report.AppendLine("  WARNING: no Camera in the scene");
+                return;
+            }
+
+            // Read the rig the temporary runner used, if its camera is still attached, so the framing is
+            // the one already seen working rather than a guess.
+            var localPosition = ReferenceCameraLocalPosition;
+            var localEuler = ReferenceCameraLocalEuler;
+            if (temp != null && camera.transform.IsChildOf(temp.transform))
+            {
+                localPosition = camera.transform.localPosition;
+                localEuler = camera.transform.localEulerAngles;
+                report.AppendLine("  camera rig read from the temporary runner");
+            }
+
+            // The follow adapter writes a world pose every LateUpdate, which fights a parent that is
+            // also moving the camera. Rigid parenting is what worked here, so the adapter steps aside.
+            var follow = camera.GetComponent<PlayerCameraFollow>();
+            if (follow != null)
+            {
+                Undo.RecordObject(follow, "Disable camera follow");
+                follow.enabled = false;
+                report.AppendLine("  PlayerCameraFollow disabled: the camera is rigidly parented " +
+                                  "instead, matching the arrangement that worked");
+            }
+
+            Undo.SetTransformParent(camera.transform, facade.transform, "Parent camera to player");
+            Undo.RecordObject(camera.transform, "Place camera");
+            camera.transform.localPosition = localPosition;
+            camera.transform.localEulerAngles = localEuler;
+            camera.transform.localScale = Vector3.one;
+
+            if (!camera.gameObject.activeSelf)
+            {
+                Undo.RecordObject(camera.gameObject, "Enable camera");
+                camera.gameObject.SetActive(true);
+                report.AppendLine("  camera re-enabled");
+            }
+
+            report.AppendLine("  camera parented to the player at local " + localPosition +
+                              " yaw " + localEuler.y);
         }
 
         private static void AssignGameplayConfiguration(
             PlayerControllerFacade facade, System.Text.StringBuilder report)
         {
-            var guids = AssetDatabase.FindAssets(GameplayConfigurationName + " t:ScriptableObject");
             Object asset = null;
-            foreach (var guid in guids)
+            foreach (var guid in AssetDatabase.FindAssets(GameplayConfigurationName))
             {
-                var path = AssetDatabase.GUIDToAssetPath(guid);
-                var candidate = AssetDatabase.LoadMainAssetAtPath(path);
+                var candidate = AssetDatabase.LoadMainAssetAtPath(AssetDatabase.GUIDToAssetPath(guid));
                 if (candidate != null && candidate.name == GameplayConfigurationName)
                 {
                     asset = candidate;
@@ -96,8 +147,7 @@ namespace SubwaySurfers.Integration.EditorTools
 
             if (asset == null)
             {
-                report.AppendLine("  WARNING: " + GameplayConfigurationName +
-                                  " not found, configuration left as it was");
+                report.AppendLine("  WARNING: " + GameplayConfigurationName + " not found");
                 return;
             }
 
@@ -127,42 +177,8 @@ namespace SubwaySurfers.Integration.EditorTools
             Undo.RecordObject(motor, "Set track yaw");
             motor.SetTrackYaw(TrackYawDegrees);
             EditorUtility.SetDirty(motor);
-            report.AppendLine("  motor track yaw set to " + TrackYawDegrees +
-                              " (domain +Z maps to world +X)");
-        }
-
-        private static void DetachAndWireCamera(
-            PlayerControllerFacade facade, System.Text.StringBuilder report)
-        {
-            var camera = Object.FindAnyObjectByType<Camera>();
-            if (camera == null)
-            {
-                report.AppendLine("  WARNING: no Camera in the scene");
-                return;
-            }
-
-            // The follow adapter writes a world position every LateUpdate. Parented under the player it
-            // would also be dragged by the player's own motion, so the two would fight each other.
-            if (camera.transform.parent != null)
-            {
-                Undo.SetTransformParent(camera.transform, null, "Detach camera");
-                report.AppendLine("  camera detached from its parent so the follow owns its pose");
-            }
-
-            Undo.RecordObject(camera.transform, "Reset camera scale");
-            camera.transform.localScale = Vector3.one;
-
-            if (camera.GetComponent<PlayerCameraFollow>() == null)
-            {
-                Undo.AddComponent<PlayerCameraFollow>(camera.gameObject);
-                report.AppendLine("  PlayerCameraFollow added to '" + camera.gameObject.name + "'");
-            }
-            else
-            {
-                report.AppendLine("  PlayerCameraFollow already on '" + camera.gameObject.name + "'");
-            }
-
-            report.AppendLine("  camera will be resolved at run time by the bridge");
+            report.AppendLine("  motor track yaw " + TrackYawDegrees +
+                              ", so forward displacement lands on world +X like Vector3.right did");
         }
 
         private static void EnsureBridge(System.Text.StringBuilder report)
@@ -185,19 +201,18 @@ namespace SubwaySurfers.Integration.EditorTools
             var trackManager = Object.FindAnyObjectByType<TrackManager>();
             if (trackManager == null)
             {
-                report.AppendLine("  no TrackManager in the scene, nothing to repoint");
+                report.AppendLine("  no TrackManager in the scene");
                 return;
             }
 
             Undo.RecordObject(trackManager, "Point track manager at player");
             trackManager.player = facade.transform;
             EditorUtility.SetDirty(trackManager);
-            report.AppendLine("  TrackManager.player now references the Player");
+            report.AppendLine("  TrackManager.player now references the Player, so spawning follows it");
         }
 
-        private static void DisableTempPlayer(System.Text.StringBuilder report)
+        private static void DisableTempPlayer(GameObject temp, System.Text.StringBuilder report)
         {
-            var temp = FindByName("TempAutoPlayer");
             if (temp == null)
             {
                 report.AppendLine("  no TempAutoPlayer present");
@@ -213,12 +228,6 @@ namespace SubwaySurfers.Integration.EditorTools
             Undo.RecordObject(temp, "Disable temporary player");
             temp.SetActive(false);
             report.AppendLine("  TempAutoPlayer disabled");
-        }
-
-        private static void EditorSceneManagerMarkDirty()
-        {
-            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
         }
 
         private static GameObject FindByName(string name)
