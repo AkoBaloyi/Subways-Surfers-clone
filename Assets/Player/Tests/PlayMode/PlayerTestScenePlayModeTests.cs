@@ -519,7 +519,7 @@ namespace SubwaySurfers.Player.Tests
 
         private static T[] FindAll<T>() where T : Component
         {
-            return UnityEngine.Object.FindObjectsByType<T>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            return UnityEngine.Object.FindObjectsByType<T>(FindObjectsInactive.Include);
         }
 
         private static long ExtractEventId(string entry)

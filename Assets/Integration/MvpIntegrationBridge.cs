@@ -212,8 +212,7 @@ namespace SubwaySurfers.Integration
             var mask = player.EffectiveConfiguration.GroundLayerMask;
             var marked = 0;
 
-            foreach (var collider in FindObjectsByType<Collider>(FindObjectsInactive.Include,
-                         FindObjectsSortMode.None))
+            foreach (var collider in FindObjectsByType<Collider>(FindObjectsInactive.Include))
             {
                 if (collider.isTrigger) continue;
                 if ((mask & (1 << collider.gameObject.layer)) == 0) continue;

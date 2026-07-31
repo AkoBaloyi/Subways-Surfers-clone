@@ -98,8 +98,7 @@ namespace SubwaySurfers.Integration.EditorTools
         private static void ReportGroundCandidates(StringBuilder sb)
         {
             sb.AppendLine("--- colliders the player could stand on ---");
-            var colliders = Object.FindObjectsByType<Collider>(FindObjectsInactive.Exclude,
-                FindObjectsSortMode.None);
+            var colliders = Object.FindObjectsByType<Collider>(FindObjectsInactive.Exclude);
             sb.AppendLine("  total active colliders in scene: " + colliders.Length);
 
             var byLayer = new Dictionary<int, int>();
@@ -162,9 +161,12 @@ namespace SubwaySurfers.Integration.EditorTools
                           "  tolerance = " + F(config.LanePositionTolerance));
             sb.AppendLine("  groundLayerMask bits = " + config.GroundLayerMask + " -> layers: " +
                           DescribeMask(config.GroundLayerMask));
-            sb.AppendLine("  baseline capsule radius = " + F(config.BaselineRadius) +
-                          " height = " + F(config.BaselineHeight) +
-                          "  => width = " + F(config.BaselineRadius * 2f));
+            sb.AppendLine("  baseline capsule radius = " + F(config.BaselineCollider.Radius) +
+                          " height = " + F(config.BaselineCollider.Height) +
+                          "  => width = " + F(config.BaselineCollider.Radius * 2f));
+            sb.AppendLine("  slide capsule    radius = " + F(config.SlideCollider.Radius) +
+                          " height = " + F(config.SlideCollider.Height));
+            sb.AppendLine("  initialCameraPosition = " + V(config.InitialCameraPosition));
 
             var motor = facade.GetComponent<CharacterControllerMotor>();
             sb.AppendLine("  motor track basis = " +
@@ -202,8 +204,7 @@ namespace SubwaySurfers.Integration.EditorTools
             var bridge = Object.FindAnyObjectByType<MvpIntegrationBridge>();
             sb.AppendLine("  MvpIntegrationBridge in scene = " + (bridge != null));
 
-            var follow = Object.FindObjectsByType<PlayerCameraFollow>(FindObjectsInactive.Include,
-                FindObjectsSortMode.None);
+            var follow = Object.FindObjectsByType<PlayerCameraFollow>(FindObjectsInactive.Include);
             sb.AppendLine("  PlayerCameraFollow count = " + follow.Length);
             foreach (var f in follow)
             {
@@ -232,8 +233,7 @@ namespace SubwaySurfers.Integration.EditorTools
 
         private static GameObject FindByName(string name)
         {
-            foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include,
-                         FindObjectsSortMode.None))
+            foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include))
             {
                 if (t.gameObject.name.Trim() == name.Trim()) return t.gameObject;
             }
