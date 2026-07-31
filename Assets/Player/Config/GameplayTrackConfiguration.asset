@@ -10,16 +10,16 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3b526a473a4f72143b1a5da7d575a462, type: 3}
-  m_Name: PlayerConfiguration
+  m_Name: GameplayTrackConfiguration
   m_EditorClassIdentifier: SubwaySurfers.Player.Runtime::SubwaySurfers.Player.Configuration.PlayerConfigurationAsset
   configured:
-    forwardSpeed: 8
+    forwardSpeed: 15
     jumpVelocity: 7
     gravityAcceleration: 20
     laneChangeDuration: 0.2
     slideDuration: 0.8
     lanePositionTolerance: 0.25
-    laneCenters: {x: -3, y: 0, z: 3}
+    laneCenters: {x: -2.542, y: 0.356, z: 3.27}
     baselineRadius: 0.5
     baselineHeight: 2
     baselineCenter: {x: 0, y: 1, z: 0}
@@ -34,7 +34,7 @@ MonoBehaviour:
       m_Bits: 1
     groundContactTolerance: 0.1
     groundNormalThreshold: 0.6
-    initialCameraPosition: {x: 0, y: 5, z: -8}
+    initialCameraPosition: {x: -8, y: 5, z: 0}
     cameraSettleDuration: 0.25
     cameraFollowTolerance: 0.05
     inputNeutralThreshold: 0.2
