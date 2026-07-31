@@ -1,4 +1,4 @@
-# criterion|kind|target|rationale
+﻿# criterion|kind|target|rationale
 #
 # Kinds resolved by SubwaySurfers.Player.Tests.FoundationMetaTests.EveryAcceptanceCriterionHasResolvableEvidence_Requirements_12_2_13_5_16_8:
 #   Automated            target is a fully qualified test method
@@ -179,10 +179,10 @@
 12.17|Pending|Assets/Player/Documentation|No evidence. No manual scenario has been executed, so no Unity version, criterion ids, result, date, tester, or defect reference has been recorded. A real human tester is required.
 12.18|Automated|SubwaySurfers.Player.Tests.RejectedCommandPreservationPropertyTests.RepeatedOrInvalidActionsPreserveCompleteSnapshot_Property8|Also StateCommandTableExampleTests.FailedPreservesTransformAndZeroVelocityAcrossRejectedCommands; StateCommandTableExampleTests.ResettingRejectsEveryPublicStateCommandWithoutMutationOrEvents; Generated.GeneratedInfrastructureTests.FailureReportsSeedCaseReplayInputMinimizedInputAndCause_Requirements_12_2_12_18; Generated.GeneratedInfrastructureTests.SequenceShrinkersAreDeterministicAndStrictlyReduceInputs_Requirements_12_3_12_8_12_18
 # Requirement 13: Traceable GDD, TDD, and Development Log
-13.1|Pending|Assets/Player/Documentation|No evidence. The GDD section has not been authored. Assets/Player/Documentation contains only AcceptanceCriteriaCatalog.txt, DevelopmentLog.md, and TraceabilityManifest.txt.
-13.2|Pending|Assets/Player/Documentation|No evidence. This entry previously claimed a DocumentedRationale against DevelopmentLog.md, but the criterion requires the GDD to identify Rachel ownership and no GDD section exists. The Development Log ownership baseline is not the GDD.
-13.3|Pending|Assets/Player/Documentation|No evidence. This entry previously claimed a DocumentedRationale against DevelopmentLog.md, but the criterion requires the GDD to identify Lucky ownership and no GDD section exists.
-13.4|Pending|Assets/Player/Documentation|No evidence. This entry previously claimed a DocumentedRationale against DevelopmentLog.md, but the criterion requires the GDD to identify the out-of-scope items and no GDD section exists.
+13.1|DocumentedRationale|Assets/Player/Documentation/GameDesignDocument.md|Sections 1 through 10 describe automatic positive-Z running, configurable speed, lane movement, jumping, sliding, failure, reset, obstacle and coin outcomes, and camera behavior from the player perspective.
+13.2|DocumentedRationale|Assets/Player/Documentation/GameDesignDocument.md|The Ownership boundaries section states Rachel_Game_Manager ownership of global game state, user interface, score and currency, and run lifecycle coordination, and states what the Player Controller therefore never does.
+13.3|DocumentedRationale|Assets/Player/Documentation/GameDesignDocument.md|The Ownership boundaries section states Lucky_Environment_System ownership of endless track generation, running surfaces, raised obstructions, and obstacle and coin placement, geometry, and lifecycle.
+13.4|DocumentedRationale|Assets/Player/Documentation/GameDesignDocument.md|The Explicitly out of scope section names progression, shops and economy, missions, cosmetics, unrelated power-ups, and production balancing as outside Player_Controller scope, each with its boundary stated.
 13.5|Automated|SubwaySurfers.Player.Tests.FoundationMetaTests.EveryAcceptanceCriterionHasResolvableEvidence_Requirements_12_2_13_5_16_8|The meta-test enforces that every catalogued criterion resolves to evidence. Outstanding: the TDD section that must carry the component, contract, configuration domain, event payload, state rule, and test strategy mapping has not been authored.
 13.6|Pending|Assets/Player/Documentation|No evidence. The TDD state-transition diagram has not been authored.
 13.7|Pending|Assets/Player/Documentation|No evidence. The TDD enumeration of accepted and rejected state-command combinations has not been authored. The combinations themselves are exercised by StateCommandTableExampleTests and StateTransitionModelPropertyTests, but the document does not exist.
@@ -192,7 +192,7 @@
 13.11|DocumentedRationale|Assets/Player/Documentation/DevelopmentLog.md|The Validation Results section records, for each recorded execution, the test identifier, acceptance criterion ids, Unity 6000.5.4f1, the observed result, and the evidence location, including runs that could not be executed.
 13.12|DocumentedRationale|Assets/Player/Documentation/DevelopmentLog.md|Each dated decision entry records the affected owner, the contract element, the compatibility impact, and the acceptance criterion ids. Contract growth to date is additive and no breaking field or meaning change has occurred.
 13.13|Pending|Assets/Player/Documentation/DevelopmentLog.md|No evidence. No independent requirement review has been performed, so there is no Review_Evidence to record. A named human reviewer is required.
-13.14|Pending|Assets/Player/Documentation|No evidence. The GDD behavior-to-criterion mapping has not been authored.
+13.14|DocumentedRationale|Assets/Player/Documentation/GameDesignDocument.md|The Behavior to criterion map table maps every described behavior and scope boundary in the section to its acceptance criterion identifiers.
 13.15|Pending|Assets/Player/Documentation/DevelopmentLog.md|No evidence. The Development Log now names the runtime, validation, scene, prefab, and configuration artifact locations, but GDD, TDD, and Manual_Test_Checklist revisions still cannot be identified because those three artifacts do not exist.
 # Requirement 14: Integration Contracts for Rachel and Lucky
 14.1|Automated|SubwaySurfers.Player.Tests.ContractSignatureCompilationTests.CommandAndQueryInterfacesExposeExactPublicSignatures_Requirements_14_1_14_2_14_9_14_10|Also ContractPayloadImmutabilityTests.CommandResultsSnapshotsAndDiagnosticsAreImmutable_Requirements_14_1_14_2_14_12; ContractTests.PublicConsumersCompileAgainstCompletePlayerOwnedContracts_Requirements_1_2_1_6_14_1_14_2_14_3
@@ -232,10 +232,13 @@
 #
 # Coverage summary as of 2026-07-31
 #   Criteria enumerated: 188 (Requirements 1 through 16 as defined in requirements.md)
-#   Mapped to real evidence: 167 (163 Automated, 4 DocumentedRationale)
-#   Pending with an explicit reason: 21
-#   Pending by requirement: 12.14-12.17; 13.1-13.4, 13.6-13.9, 13.13-13.15;
+#   Mapped to real evidence: 172 (163 Automated, 9 DocumentedRationale)
+#   Pending with an explicit reason: 16
+#   Pending by requirement: 12.14-12.17; 13.6-13.9, 13.13, 13.15;
 #     16.2-16.4, 16.6, 16.7, 16.9
+#   13.1-13.4 and 13.14 closed against Assets/Player/Documentation/GameDesignDocument.md.
+#   Remaining documentation gap: the TDD section (13.6-13.9) and the Manual Test Checklist
+#     (12.14-12.17). The rest need a real human reviewer.
 #   Every remaining Pending criterion needs an authored document or a real human reviewer. None can
 #     be closed by writing another test.
 #   Requirement 11 moved from Pending to Automated once PlayerTestScene, the validation doubles, and
