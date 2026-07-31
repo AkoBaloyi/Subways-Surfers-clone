@@ -23,7 +23,8 @@ namespace SubwaySurfers.Player
     /// is derived from it in every <c>Player_State</c>, including Failed.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class PlayerCameraFollow : MonoBehaviour, IPlayerConfigurationConsumer
+    public sealed class PlayerCameraFollow :
+        MonoBehaviour, IPlayerConfigurationConsumer, IPlayerResetParticipant
     {
         [SerializeField] private MonoBehaviour playerQuerySource;
 
@@ -124,6 +125,15 @@ namespace SubwaySurfers.Player
 
             convergence.Reset(configuredPlayerPose, configuredCameraPose);
             transform.position = convergence.CameraPosition;
+        }
+
+        /// <summary>
+        /// Camera participation in the atomic reset sequence: the same restoration
+        /// <see cref="ResetCameraPose"/> performs, run between the Resetting and Running transitions.
+        /// </summary>
+        public void RestoreInitialState()
+        {
+            ResetCameraPose();
         }
 
         private void LateUpdate()

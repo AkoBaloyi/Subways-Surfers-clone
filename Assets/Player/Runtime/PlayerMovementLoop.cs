@@ -16,29 +16,59 @@ namespace SubwaySurfers.Player
     {
         private readonly PlayerConfiguration configuration;
         private readonly IPlayerMotorSurface motor;
+        private readonly IPlayerPoseRestoration poseRestoration;
+        private readonly PlayerEventHub eventHub;
         private readonly LanePlanner lanePlanner;
         private readonly ForwardSpeedApi forwardSpeedApi;
         private readonly List<string> acceptedResetRequestIds = new List<string>();
         private readonly Func<bool> baselineRestorationQuery;
+        private readonly Vector3 startPosition;
+        private readonly Quaternion startRotation;
 
         private PlayerStateMachine stateMachine;
         private PlayerState state;
         private bool grounded;
+        private bool startGrounded;
+        private bool startGroundedSampled;
         private float verticalVelocity;
         private float slideElapsedTime;
         private ColliderProfile colliderProfile;
         private bool resetInProgress;
         private ulong laneRequestOrder;
 
+        // Set only when the reset service restored the start pose without a motor able to write the
+        // transform. The restored pose then becomes the authoritative player pose and realized
+        // displacement accumulates onto it, so the domain surface reports the pose it restored.
+        private bool poseRestoredInDomain;
+        private Vector3 restoredPosition;
+
         public PlayerMovementLoop(
             PlayerConfiguration configuration,
             IPlayerMotorSurface motor,
             Action<ValidationDiagnostic> diagnosticSink)
+            : this(configuration, motor, diagnosticSink, null)
+        {
+        }
+
+        /// <summary>
+        /// Session-wired loop: every accepted transition publishes exactly one
+        /// <c>Player_State_Changed_Event</c> on the supplied hub, so all transitions share the one
+        /// session Event_Id sequence. A null hub keeps the loop publication-free.
+        /// </summary>
+        public PlayerMovementLoop(
+            PlayerConfiguration configuration,
+            IPlayerMotorSurface motor,
+            Action<ValidationDiagnostic> diagnosticSink,
+            PlayerEventHub eventHub)
         {
             if (motor == null) throw new ArgumentNullException(nameof(motor));
 
             this.configuration = configuration;
             this.motor = motor;
+            this.eventHub = eventHub;
+            poseRestoration = motor as IPlayerPoseRestoration;
+            startPosition = motor.Position;
+            startRotation = motor.Rotation;
             baselineRestorationQuery = QueryBaselineRestoration;
 
             lanePlanner = new LanePlanner(
@@ -84,8 +114,10 @@ namespace SubwaySurfers.Player
             // JumpController owns the single takeoff impulse assignment.
             var jump = NewJumpController();
             jump.RequestJump();
+            var previous = state;
             state = machine.CurrentState;
             verticalVelocity = jump.Snapshot.VerticalVelocity;
+            PublishTransition(previous, PlayerTransitionCause.JumpRequested);
             return result;
         }
 
@@ -98,9 +130,11 @@ namespace SubwaySurfers.Player
             // SlideController owns the timer reset and the slide profile selection.
             var slide = NewSlideController();
             slide.RequestSlide();
+            var previous = state;
             state = machine.CurrentState;
             slideElapsedTime = slide.Snapshot.SlideElapsedTime;
             ApplyColliderProfile(slide.Snapshot.ColliderProfile);
+            PublishTransition(previous, PlayerTransitionCause.SlideRequested);
             return result;
         }
 
@@ -110,9 +144,11 @@ namespace SubwaySurfers.Player
             var result = machine.RequestFailure();
             if (result.Status != CommandStatus.Accepted) return result;
 
+            var previous = state;
             state = machine.CurrentState;
             grounded = machine.IsGrounded;
             ClearMovementTransients();
+            PublishTransition(previous, PlayerTransitionCause.FailureRequested);
             return result;
         }
 
@@ -123,9 +159,11 @@ namespace SubwaySurfers.Player
             if (result.Status != CommandStatus.Accepted) return result;
 
             acceptedResetRequestIds.Add(requestId);
+            var previous = state;
             state = machine.CurrentState;
             resetInProgress = true;
             ClearMovementTransients();
+            PublishTransition(previous, PlayerTransitionCause.ResetRequested);
             return result;
         }
 
@@ -158,7 +196,56 @@ namespace SubwaySurfers.Player
                 ? ComposeDisplacement(elapsedSimulationTime)
                 : Vector3.zero;
             LastRealizedDisplacement = motor.Move(LastRequestedDisplacement);
+            if (poseRestoredInDomain) restoredPosition += LastRealizedDisplacement;
             grounded = SampleGrounded();
+        }
+
+        /// <summary>
+        /// Restores every player simulation field of <c>Player_Initial_State</c>: the start transform,
+        /// Center lanes, the configured Forward_Run_Speed, Baseline_Collider_Profile, the empty lane
+        /// queue, and the transient velocity and timers. The reset service owns the sequence around
+        /// it; this step publishes nothing and submits no displacement.
+        /// </summary>
+        internal void RestorePlayerInitialState()
+        {
+            RestoreStartTransform();
+            lanePlanner.Reset(LogicalLane.Center);
+            forwardSpeedApi.SetForwardSpeed(configuration.ForwardSpeed);
+            verticalVelocity = 0f;
+            slideElapsedTime = 0f;
+            ApplyColliderProfile(configuration.BaselineCollider);
+            grounded = startGrounded;
+        }
+
+        /// <summary>
+        /// Leaves Resetting for Running, clears in-progress reset status, and publishes the single
+        /// <c>ResetCompleted</c> transition. False while the loop is not resetting.
+        /// </summary>
+        internal bool CompleteReset()
+        {
+            var machine = StateMachine;
+            if (!machine.CompleteReset()) return false;
+
+            var previous = state;
+            state = machine.CurrentState;
+            resetInProgress = false;
+            PublishTransition(previous, PlayerTransitionCause.ResetCompleted);
+            return true;
+        }
+
+        private void RestoreStartTransform()
+        {
+            if (poseRestoration != null)
+            {
+                // The Unity-side motor owns the capsule, so it writes the transform itself and stays
+                // the authoritative pose.
+                poseRestoration.RestorePose(startPosition, startRotation);
+                poseRestoredInDomain = false;
+                return;
+            }
+
+            poseRestoredInDomain = true;
+            restoredPosition = startPosition;
         }
 
         private void ResolveLanding()
@@ -168,8 +255,10 @@ namespace SubwaySurfers.Player
 
             var machine = StateMachine;
             machine.ResolveLanding();
+            var previous = state;
             state = machine.CurrentState;
             verticalVelocity = 0f;
+            PublishTransition(previous, PlayerTransitionCause.Landed);
         }
 
         private void AdvanceSlide(float elapsedSimulationTime)
@@ -184,7 +273,9 @@ namespace SubwaySurfers.Player
             ApplyColliderProfile(slide.Snapshot.ColliderProfile);
             var machine = StateMachine;
             machine.ResolveSlideRestoration(true);
+            var previous = state;
             state = machine.CurrentState;
+            PublishTransition(previous, PlayerTransitionCause.SlideRestored);
         }
 
         private void AdvanceJump(float elapsedSimulationTime)
@@ -207,7 +298,7 @@ namespace SubwaySurfers.Player
 
         private float LateralDisplacement()
         {
-            return IsActive(state) ? lanePlanner.LateralPosition - motor.Position.x : 0f;
+            return IsActive(state) ? lanePlanner.LateralPosition - PlayerPosition.x : 0f;
         }
 
         private float VerticalDisplacement(float elapsedSimulationTime)
@@ -222,11 +313,38 @@ namespace SubwaySurfers.Player
 
         private bool SampleGrounded()
         {
-            return motor.SampleGrounded(
+            var sampled = motor.SampleGrounded(
                 colliderProfile,
                 configuration.GroundLayerMask,
                 configuration.GroundContactTolerance,
                 configuration.GroundNormalThreshold);
+
+            // The first sample of the session is taken at the start pose, before any displacement, so
+            // it is the grounded status Player_Initial_State carries and the one reset restores.
+            if (!startGroundedSampled)
+            {
+                startGrounded = sampled;
+                startGroundedSampled = true;
+            }
+
+            return sampled;
+        }
+
+        private Vector3 PlayerPosition
+        {
+            get { return poseRestoredInDomain ? restoredPosition : motor.Position; }
+        }
+
+        private Quaternion PlayerRotation
+        {
+            get { return poseRestoredInDomain ? startRotation : motor.Rotation; }
+        }
+
+        private void PublishTransition(PlayerState previousState, PlayerTransitionCause cause)
+        {
+            if (eventHub == null || previousState == state) return;
+
+            eventHub.PublishStateChanged(previousState, state, cause);
         }
 
         private bool QueryBaselineRestoration()
@@ -289,8 +407,8 @@ namespace SubwaySurfers.Player
         private PlayerSnapshot BuildSnapshot()
         {
             return new PlayerSnapshot(
-                motor.Position,
-                motor.Rotation,
+                PlayerPosition,
+                PlayerRotation,
                 state,
                 grounded,
                 forwardSpeedApi.ForwardSpeed,

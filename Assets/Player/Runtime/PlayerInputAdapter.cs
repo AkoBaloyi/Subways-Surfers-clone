@@ -36,7 +36,8 @@ namespace SubwaySurfers.Player
     /// is missing.
     /// </summary>
     [DisallowMultipleComponent]
-    public sealed class PlayerInputAdapter : MonoBehaviour, IPlayerConfigurationConsumer
+    public sealed class PlayerInputAdapter :
+        MonoBehaviour, IPlayerConfigurationConsumer, IPlayerResetParticipant, IPlayerInputLatchQuery
     {
         private const string PlayerActionMapName = "Player";
         private const string MoveActionName = "Move";
@@ -89,6 +90,25 @@ namespace SubwaySurfers.Player
         /// when the axis sits inside the neutral band and a further crossing may request again.
         /// </summary>
         public InputLatchState LatchState { get; private set; }
+
+        /// <summary>
+        /// True while the adapter is routing intents: a command surface is bound and at least one
+        /// installed action is subscribed. An adapter that consumes nothing reports false rather than
+        /// claiming input it cannot receive.
+        /// </summary>
+        public bool InputConsumptionEnabled
+        {
+            get { return commands != null && ActiveSubscriptionCount > 0; }
+        }
+
+        /// <summary>
+        /// Input participation in the atomic reset sequence: the latch is rearmed, so the first
+        /// crossing after a reset issues a request instead of being swallowed as a held control.
+        /// </summary>
+        public void RestoreInitialState()
+        {
+            LatchState = InputLatchState.Neutral;
+        }
 
         /// <summary>
         /// The result the public command surface returned for the most recent request, exposed

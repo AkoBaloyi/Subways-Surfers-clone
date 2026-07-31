@@ -26,7 +26,7 @@ namespace SubwaySurfers.Player
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(CharacterController))]
-    public sealed class EnvironmentContactAdapter : MonoBehaviour
+    public sealed class EnvironmentContactAdapter : MonoBehaviour, IPlayerResetParticipant
     {
         private const int SampleBufferLength = 32;
         private const int PositionSampleLength = 8;
@@ -115,6 +115,28 @@ namespace SubwaySurfers.Player
             recordedColliders[recordedCount] = contact;
             recordedPositions[recordedCount] = contactPosition;
             recordedCount++;
+        }
+
+        /// <summary>
+        /// Contact participation in the atomic reset sequence: contact tracking, the deduplication
+        /// record, and both overlap samples are dropped, so the first reconciliation after a reset
+        /// opens fresh contacts for whatever the restored capsule overlaps.
+        /// </summary>
+        public void RestoreInitialState()
+        {
+            if (tracker != null) tracker.Clear();
+
+            ReleaseRecordedPositions();
+            for (var index = 0; index < SampleBufferLength; index++)
+            {
+                sampledColliders[index] = null;
+                sampledObjects[index] = null;
+                previousColliders[index] = null;
+                previousObjects[index] = null;
+            }
+
+            sampledCount = 0;
+            previousCount = 0;
         }
 
         /// <summary>

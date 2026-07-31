@@ -24,6 +24,16 @@ namespace SubwaySurfers.Player
     }
 
     /// <summary>
+    /// Optional capability of a motor that owns a real transform: writing the pose directly, which is
+    /// how reset restores the start transform without submitting displacement. A motor surface without
+    /// this capability leaves the restored pose to the movement loop.
+    /// </summary>
+    public interface IPlayerPoseRestoration
+    {
+        void RestorePose(Vector3 position, Quaternion rotation);
+    }
+
+    /// <summary>
     /// Owns the <see cref="CharacterController"/> capsule: one combined displacement submission per
     /// movement update, and the capsule queries the movement loop needs. Grounding lives in
     /// <see cref="GroundProbe"/>, and profile application plus the safe-restoration query live in
@@ -32,7 +42,7 @@ namespace SubwaySurfers.Player
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(CharacterController))]
-    public sealed class CharacterControllerMotor : MonoBehaviour, IPlayerMotorSurface
+    public sealed class CharacterControllerMotor : MonoBehaviour, IPlayerMotorSurface, IPlayerPoseRestoration
     {
         private readonly GroundProbe groundProbe = new GroundProbe();
         private readonly ColliderProfileApplicator profileApplicator = new ColliderProfileApplicator();
@@ -71,6 +81,23 @@ namespace SubwaySurfers.Player
             groundProbe.ClearContactSamples();
             if (capsule != null) capsule.Move(displacement);
             return transform.position - before;
+        }
+
+        /// <summary>
+        /// Writes the pose directly for reset restoration. The capsule is suspended for the write, so
+        /// the controller cannot resolve the teleport as a collision, and it is restored to the
+        /// enabled state it had. No displacement is submitted, so Move_Invocation_Count is unchanged.
+        /// </summary>
+        public void RestorePose(Vector3 position, Quaternion rotation)
+        {
+            var capsule = Controller;
+            var wasEnabled = capsule != null && capsule.enabled;
+            if (wasEnabled) capsule.enabled = false;
+
+            transform.SetPositionAndRotation(position, rotation);
+            groundProbe.ClearContactSamples();
+
+            if (wasEnabled) capsule.enabled = true;
         }
 
         public bool SampleGrounded(

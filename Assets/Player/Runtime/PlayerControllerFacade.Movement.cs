@@ -12,7 +12,16 @@ namespace SubwaySurfers.Player
     /// </summary>
     public sealed partial class PlayerControllerFacade : IPlayerCommands, IPlayerQueries
     {
+        private readonly PlayerEventHub events = new PlayerEventHub();
+
         private PlayerMovementLoop movementLoop;
+        private PlayerResetService resetService;
+
+        /// <summary>
+        /// The session event source: one Event_Id sequence for transitions, contacts, and the reset
+        /// lifecycle of this player.
+        /// </summary>
+        public PlayerEventHub Events { get { return events; } }
 
         public int MovementUpdateCount
         {
@@ -130,14 +139,35 @@ namespace SubwaySurfers.Player
                 : loop.RequestFailure();
         }
 
+        /// <summary>
+        /// Public reset command surface. An accepted Request_Id runs the complete atomic reset
+        /// sequence through <see cref="PlayerResetService"/> before returning.
+        /// </summary>
         public ResetRequestResult RequestReset(string requestId)
         {
-            var loop = EnsureMovementLoop();
-            return loop == null
+            var service = EnsureResetService();
+            return service == null
                 ? new ResetRequestResult(
                     CommandStatus.Rejected, RejectionReason.InvalidState,
                     PlayerState.Running, requestId)
-                : loop.RequestReset(requestId);
+                : service.RequestReset(requestId);
+        }
+
+        /// <summary>The complete reset equality surface of this player.</summary>
+        public PlayerResetSnapshot ResetSnapshot
+        {
+            get
+            {
+                var service = EnsureResetService();
+                return service == null
+                    ? new PlayerResetSnapshot(
+                        UnavailableSnapshot(), transform.position, transform.rotation,
+                        Vector3.zero, Vector3.zero, Vector3.zero, 0f, false,
+                        InputLatchState.Neutral, true,
+                        ImmutableValueSequence<LogicalContactIdentity>.Empty,
+                        ImmutableValueSequence<ContactEventIdentity>.Empty)
+                    : service.Snapshot;
+            }
         }
 
         public SpeedSetResult SetForwardSpeed(float requestedSpeed)
@@ -170,8 +200,38 @@ namespace SubwaySurfers.Player
             var motor = ResolveMotorSurface();
             if (motor == null) return null;
 
-            movementLoop = new PlayerMovementLoop(EffectiveConfiguration, motor, null);
+            movementLoop = new PlayerMovementLoop(EffectiveConfiguration, motor, null, events);
             return movementLoop;
+        }
+
+        /// <summary>
+        /// The reset service for this player, built once the movement loop exists. Sibling components
+        /// that own Unity-side state join the atomic sequence as reset participants.
+        /// </summary>
+        private PlayerResetService EnsureResetService()
+        {
+            if (resetService != null) return resetService;
+
+            var loop = EnsureMovementLoop();
+            if (loop == null) return null;
+
+            resetService = new PlayerResetService(
+                EffectiveConfiguration, loop, events, null, null, null);
+
+            var input = GetComponent<PlayerInputAdapter>();
+            if (input != null)
+            {
+                resetService.InputLatch = input;
+                resetService.AddResetParticipant(input);
+            }
+
+            resetService.AddResetParticipant(GetComponent<EnvironmentContactAdapter>());
+
+            var cameraTarget = EffectiveReferences.CameraTarget as Component;
+            resetService.AddResetParticipant(cameraTarget == null
+                ? null
+                : cameraTarget.GetComponent<PlayerCameraFollow>());
+            return resetService;
         }
 
         private IPlayerMotorSurface ResolveMotorSurface()
