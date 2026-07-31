@@ -92,6 +92,15 @@ namespace SubwaySurfers.Player
         public InputLatchState LatchState { get; private set; }
 
         /// <summary>
+        /// The vertical latch sign: zero when the vertical axis sits inside the neutral band, 1 while an
+        /// upward crossing is latched, -1 while a downward crossing is latched.
+        ///
+        /// The vertical axis is latched independently of the horizontal one so steering and a jump or
+        /// slide can be actuated together, which a diagonal keyboard or stick input produces routinely.
+        /// </summary>
+        public int VerticalLatchSign { get; private set; }
+
+        /// <summary>
         /// True while the adapter is routing intents: a command surface is bound and at least one
         /// installed action is subscribed. An adapter that consumes nothing reports false rather than
         /// claiming input it cannot receive.
@@ -108,6 +117,7 @@ namespace SubwaySurfers.Player
         public void RestoreInitialState()
         {
             LatchState = InputLatchState.Neutral;
+            VerticalLatchSign = 0;
         }
 
         /// <summary>
@@ -150,6 +160,7 @@ namespace SubwaySurfers.Player
             crouchAction = null;
             actionsResolved = false;
             LatchState = InputLatchState.Neutral;
+            VerticalLatchSign = 0;
             LastRequestResult = default(ActionRequestResult);
             LastReceiptOrder = 0;
             IssuedRequestCount = 0;
@@ -295,7 +306,13 @@ namespace SubwaySurfers.Player
 
         private void HandleMove(InputAction.CallbackContext context)
         {
-            var axis = context.ReadValue<Vector2>().x;
+            var move = context.ReadValue<Vector2>();
+            HandleHorizontal(move.x);
+            HandleVertical(move.y);
+        }
+
+        private void HandleHorizontal(float axis)
+        {
             var magnitude = axis < 0f ? -axis : axis;
 
             if (magnitude <= thresholds.NeutralThreshold)
@@ -316,6 +333,39 @@ namespace SubwaySurfers.Player
                 ? default(ActionRequestResult)
                 : commands.RequestLane(
                     crossed == InputLatchState.Right ? LaneDirection.Right : LaneDirection.Left));
+        }
+
+        /// <summary>
+        /// Vertical intent on the movement axis: up requests a jump, down requests a slide. This mirrors
+        /// the runner convention of swipe up to jump and swipe down to roll, and it is why the vertical
+        /// axis is consumed here rather than discarded.
+        ///
+        /// The dedicated Jump and Crouch actions remain the primary bindings and are unchanged. This adds
+        /// a second route to the same public commands, so no binding, action, or serialized override in
+        /// the read-only input asset is touched. A request issued here is an ordinary public command and
+        /// is accepted or rejected by the same state rules.
+        /// </summary>
+        private void HandleVertical(float axis)
+        {
+            var magnitude = axis < 0f ? -axis : axis;
+
+            if (magnitude <= thresholds.NeutralThreshold)
+            {
+                VerticalLatchSign = 0;
+                return;
+            }
+
+            if (magnitude < thresholds.ActuationThreshold) return;
+
+            var crossed = axis > 0f ? 1 : -1;
+            if (VerticalLatchSign == crossed) return;
+
+            VerticalLatchSign = crossed;
+            RecordResult(commands == null
+                ? default(ActionRequestResult)
+                : crossed > 0
+                    ? commands.RequestJump()
+                    : commands.RequestSlide());
         }
 
         private void HandleJump(InputAction.CallbackContext context)
