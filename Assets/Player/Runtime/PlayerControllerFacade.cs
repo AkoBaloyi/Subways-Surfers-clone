@@ -116,6 +116,26 @@ namespace SubwaySurfers.Player
             return configurationResult;
         }
 
+        /// <summary>
+        /// The player's session event source, resolved from the references validated configuration was
+        /// distributed with. A consumer that publishes on the player's behalf - the animation bridge
+        /// turning transitions into commands, the input adapter reporting an unresolved action - has no
+        /// serialized route to the hub, because the hub is owned in code rather than authored. Taking
+        /// it from Player_Root during facade-controlled initialization keeps a serialized prefab
+        /// publishing without any extra authored wiring, and falls back to the consumer's own
+        /// hierarchy when Player_Root does not carry the facade.
+        /// </summary>
+        internal static PlayerEventHub ResolveEventSource(
+            GameObject consumer, PlayerConfigurationReferences references)
+        {
+            var root = references.PlayerRoot as GameObject;
+            var facade = root == null ? null : root.GetComponent<PlayerControllerFacade>();
+            if (facade == null && consumer != null)
+                facade = consumer.GetComponentInParent<PlayerControllerFacade>();
+
+            return facade == null ? null : facade.Events;
+        }
+
         private void PublishDiagnostics(IReadOnlyList<ConfigurationDiagnostic> diagnostics)
         {
             var handler = ConfigurationDiagnosticReported;

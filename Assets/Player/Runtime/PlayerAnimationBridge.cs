@@ -43,12 +43,19 @@ namespace SubwaySurfers.Player
         }
 
         /// <summary>
-        /// Facade-driven configuration: the effective animation receiver reference is resolved to its
-        /// interface and installed on the adapter.
+        /// Facade-driven configuration: the player's event source is bound and the effective animation
+        /// receiver reference is resolved to its interface and installed on the adapter. The hub is
+        /// owned in code rather than authored, so a serialized prefab has no reference to assign for
+        /// it; without binding it here the adapter would never exist and a configured animation layer
+        /// would silently apply no command. An event source bound by an explicit
+        /// <see cref="Configure"/> call is kept, so initialization never rebuilds a live adapter.
         /// </summary>
         public void Initialize(
             PlayerConfiguration configuration, PlayerConfigurationReferences references)
         {
+            if (events == null)
+                events = PlayerControllerFacade.ResolveEventSource(gameObject, references);
+
             receiver = references.AnimationReceiver as IAnimationReceiver;
             if (adapter == null)
             {

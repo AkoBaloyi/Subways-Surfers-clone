@@ -161,8 +161,12 @@ namespace SubwaySurfers.Player
         /// <summary>
         /// Facade-driven configuration: the effective input bands and the effective action asset
         /// reference are taken from validated configuration, and the player's own command surface is
-        /// used as the command route. A reference that is not an action asset resolves no actions and
-        /// is reported as missing per action, exactly as an absent asset is.
+        /// used as the command route. The player's event source is bound here too, because the hub is
+        /// owned in code rather than authored and a serialized prefab has no reference to assign for
+        /// it; without it a missing-action diagnostic would be discarded instead of published. A hub
+        /// bound by an explicit <see cref="Configure"/> call is kept. A reference that is not an action
+        /// asset resolves no actions and is reported as missing per action, exactly as an absent asset
+        /// is.
         /// </summary>
         public void Initialize(
             PlayerConfiguration configuration, PlayerConfigurationReferences references)
@@ -171,7 +175,7 @@ namespace SubwaySurfers.Player
                 commands ?? GetComponent<IPlayerCommands>(),
                 references.InputActionAsset as InputActionAsset,
                 configuration.InputThresholds,
-                events);
+                events ?? PlayerControllerFacade.ResolveEventSource(gameObject, references));
         }
 
         private void OnEnable()
