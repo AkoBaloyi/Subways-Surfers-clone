@@ -47,6 +47,19 @@ namespace SubwaySurfers.Player
         private readonly GroundProbe groundProbe = new GroundProbe();
         private readonly ColliderProfileApplicator profileApplicator = new ColliderProfileApplicator();
 
+        /// <summary>
+        /// Yaw in degrees mapping domain displacement onto the world. The domain always works in its
+        /// own basis: forward is +Z, lateral is X, exactly as the movement rules are specified and
+        /// tested. A track laid out along a different world axis is an authoring fact, not a change to
+        /// those rules, so it is resolved here at the single point where displacement reaches Unity.
+        ///
+        /// Zero is the identity mapping and keeps world behaviour identical to the domain, which is why
+        /// it is the default. Set 90 for a track whose travel direction is world +X.
+        /// </summary>
+        [Tooltip("Yaw in degrees mapping the player's domain forward (+Z) onto the track's world " +
+                 "travel direction. 0 leaves domain and world aligned. Use 90 for an +X track.")]
+        [SerializeField] private float trackYawDegrees;
+
         private CharacterController controller;
         private EnvironmentContactAdapter contactAdapter;
         private bool contactAdapterResolved;
@@ -55,6 +68,26 @@ namespace SubwaySurfers.Player
         public Vector3 Position { get { return transform.position; } }
         public Quaternion Rotation { get { return transform.rotation; } }
         public int MoveInvocationCount { get { return moveInvocationCount; } }
+
+        /// <summary>
+        /// The rotation taking domain displacement into world space. Identity when
+        /// <see cref="trackYawDegrees"/> is zero, so the common case costs nothing observable.
+        /// </summary>
+        public Quaternion TrackBasis
+        {
+            get
+            {
+                return trackYawDegrees == 0f
+                    ? Quaternion.identity
+                    : Quaternion.Euler(0f, trackYawDegrees, 0f);
+            }
+        }
+
+        /// <summary>Sets the world mapping at runtime, for scene wiring and tests.</summary>
+        public void SetTrackYaw(float degrees)
+        {
+            trackYawDegrees = degrees;
+        }
 
         private CharacterController Controller
         {
@@ -76,11 +109,17 @@ namespace SubwaySurfers.Player
 
             var capsule = Controller;
             var before = transform.position;
+            var basis = TrackBasis;
 
             // Collision normals belong to the displacement that produced them.
             groundProbe.ClearContactSamples();
-            if (capsule != null) capsule.Move(displacement);
-            return transform.position - before;
+            if (capsule != null) capsule.Move(basis * displacement);
+
+            // Realized displacement is reported back in domain space, so the caller compares like with
+            // like: a lane movement blocked by collision still reads as blocked lateral travel rather
+            // than appearing as motion on an axis the domain does not use.
+            var realized = transform.position - before;
+            return basis == Quaternion.identity ? realized : Quaternion.Inverse(basis) * realized;
         }
 
         /// <summary>
