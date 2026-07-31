@@ -253,16 +253,13 @@ namespace SubwaySurfers.Integration
                 return;
             }
 
+            // The marker sits on the rail, which is exactly the height the player should stand at. An
+            // earlier version raycast downward from well above it and hit a train roof instead, leaving
+            // the player hanging metres in the air. Since Running only applies a small settling nudge
+            // rather than gravity, a player spawned in the air never falls and never becomes grounded,
+            // so the start height has to be right rather than approximately right.
             var reference = marker.transform.position;
-            var target = reference;
-
-            RaycastHit surface;
-            var probe = new Vector3(reference.x, reference.y + 20f, reference.z);
-            if (Physics.Raycast(probe, Vector3.down, out surface, 60f, ~0,
-                    QueryTriggerInteraction.Ignore))
-            {
-                target = new Vector3(reference.x, surface.point.y + spawnClearance, reference.z);
-            }
+            var target = new Vector3(reference.x, reference.y + spawnClearance, reference.z);
 
             var controller = player.GetComponent<CharacterController>();
             var wasEnabled = controller != null && controller.enabled;
@@ -276,23 +273,49 @@ namespace SubwaySurfers.Integration
             if (logSummary)
             {
                 Debug.Log("Player spawn snapped from " + before + " to " + target +
-                          " using marker '" + marker.name + "'" +
-                          (Mathf.Abs(before.z - target.z) > 0.5f
-                              ? ". The saved scene pose was off-lane, which is what produced the " +
-                                "sideways drift."
-                              : "."), this);
+                          " using marker '" + marker.name + "' on '" +
+                          (marker.transform.parent == null ? "(no parent)" : marker.transform.parent.name) +
+                          "'. Marker height is the rail surface, so the feet start " + spawnClearance +
+                          " above it.", this);
             }
         }
 
+        /// <summary>
+        /// Finds the authored object of this name, preferring one that is not part of a runtime clone.
+        ///
+        /// The track manager spawns several segments before this runs, so by the time the bridge starts
+        /// there are many objects sharing a marker name, scattered along the track wherever segments were
+        /// placed or recycled. Taking the first match placed the player against a clone hundreds of units
+        /// away. The authored segment is the stable reference, so clones are only a last resort.
+        /// </summary>
         private static GameObject FindByName(string name)
         {
             if (string.IsNullOrEmpty(name)) return null;
 
+            GameObject clone = null;
             foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Include))
             {
-                if (t.gameObject.name.Trim() == name.Trim()) return t.gameObject;
+                if (t.gameObject.name.Trim() != name.Trim()) continue;
+
+                if (IsRuntimeClone(t))
+                {
+                    if (clone == null) clone = t.gameObject;
+                    continue;
+                }
+
+                return t.gameObject;
             }
-            return null;
+
+            return clone;
+        }
+
+        private static bool IsRuntimeClone(Transform candidate)
+        {
+            for (var t = candidate; t != null; t = t.parent)
+            {
+                if (t.gameObject.name.EndsWith("(Clone)", System.StringComparison.Ordinal)) return true;
+            }
+            return false;
         }
 
         /// <summary>
