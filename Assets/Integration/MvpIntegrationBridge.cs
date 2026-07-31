@@ -39,6 +39,19 @@ namespace SubwaySurfers.Integration
                  "existing speed ramp drives the player.")]
         [SerializeField] private bool driveSpeedFromGameManager = true;
 
+        [Header("Spawn")]
+        [Tooltip("Places the player on the named rail marker at run time, at a height measured against " +
+                 "the surface below it. Guarantees the start pose regardless of what the scene has " +
+                 "saved, and regardless of anything that moved the player during load.")]
+        [SerializeField] private bool snapToLaneOnStart = true;
+
+        [Tooltip("Marker whose position defines the starting lane and distance along the track.")]
+        [SerializeField] private string startMarkerName = "MiddleRailMarker";
+
+        [Tooltip("Gap left between the capsule's feet and the measured surface, so the capsule never " +
+                 "starts intersecting geometry and cannot be depenetrated sideways off the lanes.")]
+        [SerializeField] private float spawnClearance = 0.15f;
+
         [Header("Runtime marker repair")]
         [Tooltip("Adds a running-surface marker to non-trigger colliders on the configured ground " +
                  "layer, so the player can be grounded on environment geometry that predates the marker.")]
@@ -81,7 +94,10 @@ namespace SubwaySurfers.Integration
             var obstacles = 0;
             var coins = 0;
 
+            // Marking has to happen before the snap measures a surface, because the surface the player
+            // will stand on must already be a valid running surface for grounding to take afterwards.
             if (markGroundAsRunningSurface) surfaces = MarkGroundColliders();
+            if (snapToLaneOnStart) SnapToStartLane();
             obstacles = MarkTagged(obstacleTag, EnvironmentObjectKind.Obstacle, 0f);
             coins = MarkTagged(coinTag, EnvironmentObjectKind.Coin, coinValue);
 
@@ -209,6 +225,74 @@ namespace SubwaySurfers.Integration
             {
                 Debug.LogWarning("Reset " + id + " rejected: " + result.Reason, this);
             }
+        }
+
+        /// <summary>
+        /// Places the player on the starting lane marker, at a height measured against the surface below.
+        ///
+        /// The saved scene pose has proven unreliable: a capsule that starts inside the train geometry is
+        /// depenetrated sideways off the lanes, and any stale saved position survives until someone moves
+        /// it again by hand. Deciding the spawn at run time removes both, so pressing Play always begins
+        /// on the middle lane whatever the scene happens to hold.
+        ///
+        /// The controller is suspended for the write so the move is a placement rather than something the
+        /// capsule tries to resolve as a collision. The player's own reset start pose was captured during
+        /// its Awake, which ran before this, so the reset service is told to treat this as the new origin
+        /// where it can; otherwise a later reset would return to the old pose.
+        /// </summary>
+        private void SnapToStartLane()
+        {
+            var marker = FindByName(startMarkerName);
+            if (marker == null)
+            {
+                if (logSummary)
+                {
+                    Debug.LogWarning("Spawn marker '" + startMarkerName + "' not found, so the player " +
+                                     "keeps its scene pose.", this);
+                }
+                return;
+            }
+
+            var reference = marker.transform.position;
+            var target = reference;
+
+            RaycastHit surface;
+            var probe = new Vector3(reference.x, reference.y + 20f, reference.z);
+            if (Physics.Raycast(probe, Vector3.down, out surface, 60f, ~0,
+                    QueryTriggerInteraction.Ignore))
+            {
+                target = new Vector3(reference.x, surface.point.y + spawnClearance, reference.z);
+            }
+
+            var controller = player.GetComponent<CharacterController>();
+            var wasEnabled = controller != null && controller.enabled;
+            if (controller != null) controller.enabled = false;
+
+            var before = player.transform.position;
+            player.transform.position = target;
+
+            if (controller != null) controller.enabled = wasEnabled;
+
+            if (logSummary)
+            {
+                Debug.Log("Player spawn snapped from " + before + " to " + target +
+                          " using marker '" + marker.name + "'" +
+                          (Mathf.Abs(before.z - target.z) > 0.5f
+                              ? ". The saved scene pose was off-lane, which is what produced the " +
+                                "sideways drift."
+                              : "."), this);
+            }
+        }
+
+        private static GameObject FindByName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return null;
+
+            foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Include))
+            {
+                if (t.gameObject.name.Trim() == name.Trim()) return t.gameObject;
+            }
+            return null;
         }
 
         /// <summary>
