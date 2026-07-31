@@ -56,11 +56,45 @@ namespace SubwaySurfers.Player.Tests
             Assert.That(definition.autoReferenced, Is.True);
         }
 
+        /// <summary>
+        /// Player-owned assemblies a test assembly may reference. The runtime is the subject under
+        /// test. The validation assembly holds the non-production scene doubles and the test-scene
+        /// harness, which must be reachable from the Play Mode scene tests and from PlayerTestScene
+        /// itself; it is player-owned, contains no production environment or run-coordination code,
+        /// and is never referenced as production content. Nothing else widens: a production Rachel or
+        /// Lucky assembly, or a reference from one test assembly to another, still fails.
+        /// </summary>
+        private static readonly string[] AllowedTestReferences =
+        {
+            "SubwaySurfers.Player.Runtime",
+            "SubwaySurfers.Player.Validation"
+        };
+
         [Test]
         public void TestAssembliesReferenceOnlyPlayerRuntime_Requirements_11_11_12_13()
         {
             AssertTestAssembly("Tests/EditMode/SubwaySurfers.Player.Tests.EditMode.asmdef", true);
             AssertTestAssembly("Tests/PlayMode/SubwaySurfers.Player.Tests.PlayMode.asmdef", false);
+        }
+
+        /// <summary>
+        /// The validation assembly carries the non-production doubles and harness. It must depend on
+        /// the player runtime only, so PlayerTestScene can never drag a production Rachel or Lucky
+        /// implementation, or a test assembly, into a scene.
+        /// </summary>
+        [Test]
+        public void ValidationAssemblyDependsOnPlayerRuntimeOnly_Requirements_1_4_11_11_11_13_14_11_14_12()
+        {
+            var definition = ReadAssemblyDefinition("Validation/SubwaySurfers.Player.Validation.asmdef");
+            Assert.That(definition.name, Is.EqualTo("SubwaySurfers.Player.Validation"));
+            Assert.That(definition.references, Is.EqualTo(new[] { "SubwaySurfers.Player.Runtime" }),
+                "The validation assembly must depend on the player runtime and nothing else.");
+            Assert.That(definition.optionalUnityReferences ?? Array.Empty<string>(), Is.Empty,
+                "The validation assembly is scene content, not a test assembly, so it must not " +
+                "request TestAssemblies. A test assembly cannot be referenced by a scene.");
+            Assert.That(definition.includePlatforms ?? Array.Empty<string>(), Is.Empty,
+                "PlayerTestScene must run in the Editor and in a player build, so the validation " +
+                "assembly must not restrict platforms.");
         }
 
         [Test]
@@ -153,7 +187,16 @@ namespace SubwaySurfers.Player.Tests
         private static void AssertTestAssembly(string relativePath, bool editorOnly)
         {
             var definition = ReadAssemblyDefinition(relativePath);
-            Assert.That(definition.references, Is.EqualTo(new[] { "SubwaySurfers.Player.Runtime" }));
+            var references = definition.references ?? Array.Empty<string>();
+            Assert.That(references, Does.Contain("SubwaySurfers.Player.Runtime"),
+                relativePath + " must reference the player runtime it tests.");
+            var forbidden = references
+                .Where(reference => !AllowedTestReferences.Contains(reference, StringComparer.Ordinal))
+                .ToArray();
+            Assert.That(forbidden, Is.Empty,
+                relativePath + " may reference only player-owned non-production assemblies (" +
+                string.Join(", ", AllowedTestReferences) + "). Unexpected references:\n" +
+                string.Join("\n", forbidden));
             Assert.That(definition.optionalUnityReferences, Does.Contain("TestAssemblies"));
             Assert.That(definition.autoReferenced, Is.False);
             Assert.That((definition.references ?? Array.Empty<string>()).Any(reference =>
