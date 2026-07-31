@@ -183,11 +183,11 @@
 13.2|DocumentedRationale|Assets/Player/Documentation/GameDesignDocument.md|The Ownership boundaries section states Rachel_Game_Manager ownership of global game state, user interface, score and currency, and run lifecycle coordination, and states what the Player Controller therefore never does.
 13.3|DocumentedRationale|Assets/Player/Documentation/GameDesignDocument.md|The Ownership boundaries section states Lucky_Environment_System ownership of endless track generation, running surfaces, raised obstructions, and obstacle and coin placement, geometry, and lifecycle.
 13.4|DocumentedRationale|Assets/Player/Documentation/GameDesignDocument.md|The Explicitly out of scope section names progression, shops and economy, missions, cosmetics, unrelated power-ups, and production balancing as outside Player_Controller scope, each with its boundary stated.
-13.5|Automated|SubwaySurfers.Player.Tests.FoundationMetaTests.EveryAcceptanceCriterionHasResolvableEvidence_Requirements_12_2_13_5_16_8|The meta-test enforces that every catalogued criterion resolves to evidence. Outstanding: the TDD section that must carry the component, contract, configuration domain, event payload, state rule, and test strategy mapping has not been authored.
-13.6|Pending|Assets/Player/Documentation|No evidence. The TDD state-transition diagram has not been authored.
-13.7|Pending|Assets/Player/Documentation|No evidence. The TDD enumeration of accepted and rejected state-command combinations has not been authored. The combinations themselves are exercised by StateCommandTableExampleTests and StateTransitionModelPropertyTests, but the document does not exist.
-13.8|Pending|Assets/Player/Documentation|No evidence. The TDD description of speed API result behavior and complete repeat-safe reset equivalence has not been authored.
-13.9|Pending|Assets/Player/Documentation|No evidence. The TDD enumeration of Rachel and Lucky command, query, event, payload, and ownership contracts has not been authored.
+13.5|Automated|SubwaySurfers.Player.Tests.FoundationMetaTests.EveryAcceptanceCriterionHasResolvableEvidence_Requirements_12_2_13_5_16_8|The meta-test enforces that every catalogued criterion resolves to evidence. The mapping itself now exists in Assets/Player/Documentation/TechnicalDesignDocument.md, whose sections 1 through 9 carry criterion identifiers for every component, public contract, configuration domain, event payload, state rule, and test-strategy layer.
+13.6|DocumentedRationale|Assets/Player/Documentation/TechnicalDesignDocument.md|Section 4.1 contains the state-transition diagram covering Running, Jumping, Sliding, Failed, and Resetting, including entry state, the reset-eligible source states, and the transient nature of Resetting.
+13.7|DocumentedRationale|Assets/Player/Documentation/TechnicalDesignDocument.md|Section 4.2 enumerates all 35 public state-command combinations defined by Requirement 6 with accepted or rejected outcome and rejection code, plus the internal landing, safe-restoration, and reset-completed transitions, and states that a boundary lane request is accepted as a no-op rather than rejected.
+13.8|DocumentedRationale|Assets/Player/Documentation/TechnicalDesignDocument.md|Section 6 describes Forward_Speed_API result behavior including the accepted domain, next-update visibility, rejection codes, one diagnostic, and prior-speed preservation. Section 7 describes the atomic reset sequence and enumerates the complete reset equality surface, including camera pose, smoothing state, and contact identities, and the session state deliberately excluded.
+13.9|DocumentedRationale|Assets/Player/Documentation/TechnicalDesignDocument.md|Section 8 enumerates Rachel_Game_Manager command, query, event, payload, and ownership-boundary contracts, and Lucky_Environment_System provider, payload, query, and ownership-boundary contracts, each with criterion identifiers, plus the compatibility rule for contract evolution.
 13.10|DocumentedRationale|Assets/Player/Documentation/DevelopmentLog.md|The Decisions section records dated entries carrying acceptance criterion ids, the decision, its rationale, and affected asset paths for the Task 1 foundation and for task groups 5 through 9.
 13.11|DocumentedRationale|Assets/Player/Documentation/DevelopmentLog.md|The Validation Results section records, for each recorded execution, the test identifier, acceptance criterion ids, Unity 6000.5.4f1, the observed result, and the evidence location, including runs that could not be executed.
 13.12|DocumentedRationale|Assets/Player/Documentation/DevelopmentLog.md|Each dated decision entry records the affected owner, the contract element, the compatibility impact, and the acceptance criterion ids. Contract growth to date is additive and no breaking field or meaning change has occurred.
@@ -232,13 +232,16 @@
 #
 # Coverage summary as of 2026-07-31
 #   Criteria enumerated: 188 (Requirements 1 through 16 as defined in requirements.md)
-#   Mapped to real evidence: 172 (163 Automated, 9 DocumentedRationale)
-#   Pending with an explicit reason: 16
-#   Pending by requirement: 12.14-12.17; 13.6-13.9, 13.13, 13.15;
-#     16.2-16.4, 16.6, 16.7, 16.9
+#   Mapped to real evidence: 176 (163 Automated, 13 DocumentedRationale)
+#   Pending with an explicit reason: 12
+#   Pending by requirement: 12.14-12.17; 13.13, 13.15; 16.2-16.4, 16.6, 16.7, 16.9
 #   13.1-13.4 and 13.14 closed against Assets/Player/Documentation/GameDesignDocument.md.
-#   Remaining documentation gap: the TDD section (13.6-13.9) and the Manual Test Checklist
-#     (12.14-12.17). The rest need a real human reviewer.
+#   13.6-13.9 closed against Assets/Player/Documentation/TechnicalDesignDocument.md. 13.5 keeps its
+#     stronger Automated evidence; the TDD supplies the mapping the meta-test enforces.
+#   Of the 12 remaining, only 12.14-12.16 and 13.15 can be closed by authoring the Manual Test
+#     Checklist. The other 8 need a real human: 12.17 needs a named tester executing scenarios on a
+#     real date, 13.13 and 16.2-16.4 and 16.6 and 16.9 need independent, Rachel, and Lucky review
+#     evidence, and 16.7 needs a fully passing suite plus those executed scenarios.
 #   Every remaining Pending criterion needs an authored document or a real human reviewer. None can
 #     be closed by writing another test.
 #   Requirement 11 moved from Pending to Automated once PlayerTestScene, the validation doubles, and
