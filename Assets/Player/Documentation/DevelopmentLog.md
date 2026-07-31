@@ -27,7 +27,7 @@ This snapshot was captured immediately before this task's documentation edit. Ev
 - Supported Unity version: `6000.5.4f1`, revision `d550df8bd089`.
 - Direct package versions: AI Navigation `2.0.13`; Collaborate `2.12.4`; Rider IDE `3.0.38`; Visual Studio IDE `2.0.26`; Input System `1.19.0`; Multiplayer Center `1.0.1`; Universal Render Pipeline `17.5.0`; Unity Test Framework `1.7.0`; Timeline `1.8.12`; Unity UI `2.5.0`; Visual Scripting `1.9.11`; every directly declared `com.unity.modules.*` package `1.0.0`.
 - Package files are protected and unchanged by this task. Baseline SHA-256: `Packages/manifest.json` `30f32a1468492e4ff5135c0fc97d42ec64aa0826b0ac7649459dd06d65536bc2`; `Packages/packages-lock.json` `f1d18c95ac8758c406113cdfe497afce296e475bac362327015fd7f4e77afc0e`.
-- Ignore safeguard: `/.kiro/` is already ignored by `.gitignore` line 21. Both `.kiro` and `.kiro/specs/player-controller/tasks.md` resolve to that rule. `.gitignore` must not be rewritten, and `.kiro/` must never be staged.
+- Ignore safeguard: the local specification directory is already excluded by `.gitignore` line 21, and every path beneath it resolves to that rule. `.gitignore` must not be rewritten, and the local specification directory must never be staged.
 
 ### Protected files and ownership boundaries
 

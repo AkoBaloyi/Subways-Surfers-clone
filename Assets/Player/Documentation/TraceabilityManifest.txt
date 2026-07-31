@@ -21,9 +21,9 @@
 #       prefab and configuration asset that do not exist. They are deliberately not mapped here:
 #       they cannot pass today, so mapping them would record evidence that does not exist. Fold them
 #       in once the prefab and configuration assets exist and a real passing run is observed.
-#   (c) AcceptanceCriteriaCatalog.txt still declares 9:8, 11:12 and 15:9 while
-#       .kiro/specs/player-controller/requirements.md defines 9.10, 11.13 and 15.10. Those three
-#       criteria are enumerated below but the catalog does not yet ask the meta-test to check them.
+#   (c) AcceptanceCriteriaCatalog.txt still declares 9:8, 11:12 and 15:9 while the requirements
+#       specification defines 9.10, 11.13 and 15.10. Those three criteria are enumerated below
+#       but the catalog does not yet ask the meta-test to check them.
 #
 # Requirement 1: Ownership and Scope
 1.1|Automated|SubwaySurfers.Player.Tests.FoundationMetaTests.SupportedUnityVersionMatchesSpecification_Requirement_1_1|
