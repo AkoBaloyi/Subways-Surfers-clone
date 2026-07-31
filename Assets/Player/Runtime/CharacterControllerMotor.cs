@@ -65,7 +65,26 @@ namespace SubwaySurfers.Player
         private bool contactAdapterResolved;
         private int moveInvocationCount;
 
-        public Vector3 Position { get { return transform.position; } }
+        /// <summary>
+        /// The player's pose expressed in the domain's own basis, where forward is +Z and lateral is X.
+        ///
+        /// The domain reads components of this position directly: the lane planner takes X as its lateral
+        /// origin, for instance. Returning the raw world position would therefore feed forward distance
+        /// in as lateral offset whenever the track runs along a different world axis, and the planner
+        /// would try to travel that distance sideways. Mapping back through the basis keeps every
+        /// position the domain sees in the same frame as the displacement it produces.
+        /// </summary>
+        public Vector3 Position
+        {
+            get
+            {
+                var basis = TrackBasis;
+                return basis == Quaternion.identity
+                    ? transform.position
+                    : Quaternion.Inverse(basis) * transform.position;
+            }
+        }
+
         public Quaternion Rotation { get { return transform.rotation; } }
         public int MoveInvocationCount { get { return moveInvocationCount; } }
 
@@ -133,7 +152,13 @@ namespace SubwaySurfers.Player
             var wasEnabled = capsule != null && capsule.enabled;
             if (wasEnabled) capsule.enabled = false;
 
-            transform.SetPositionAndRotation(position, rotation);
+            // The caller works in domain space, the same frame Position reports, so the pose maps back
+            // through the basis on the way out. Without this a reset would restore a world pose built
+            // from domain components and teleport the player off the track.
+            var basis = TrackBasis;
+            var worldPosition = basis == Quaternion.identity ? position : basis * position;
+
+            transform.SetPositionAndRotation(worldPosition, rotation);
             groundProbe.ClearContactSamples();
 
             if (wasEnabled) capsule.enabled = true;
