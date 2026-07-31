@@ -85,14 +85,18 @@ namespace SubwaySurfers.Integration
             obstacles = MarkTagged(obstacleTag, EnvironmentObjectKind.Obstacle, 0f);
             coins = MarkTagged(coinTag, EnvironmentObjectKind.Coin, coinValue);
 
+            var cameras = WireCameraFollow();
+
             Subscribe();
 
             if (logSummary)
             {
                 Debug.Log(string.Format(
                     "MvpIntegrationBridge ready. Running surfaces marked: {0}. Obstacles marked: {1}. " +
-                    "Coins marked: {2}. GameManager present: {3}. Player grounded: {4}.",
-                    surfaces, obstacles, coins, GameManager.Instance != null, player.IsGrounded), this);
+                    "Coins marked: {2}. Cameras wired: {3}. GameManager present: {4}. " +
+                    "Player grounded: {5}.",
+                    surfaces, obstacles, coins, cameras,
+                    GameManager.Instance != null, player.IsGrounded), this);
 
                 if (surfaces == 0)
                 {
@@ -205,6 +209,43 @@ namespace SubwaySurfers.Integration
             {
                 Debug.LogWarning("Reset " + id + " rejected: " + result.Reason, this);
             }
+        }
+
+        /// <summary>
+        /// Wires every camera follow in the scene to the player.
+        ///
+        /// The follow adapter only builds its convergence state when the facade initializes it as a
+        /// configuration consumer, or when something supplies the player directly. A camera that lives
+        /// outside the player prefab is not in the facade's consumer list, so it would sit unresolved
+        /// and never move. Calling Configure here is the supported programmatic route and takes
+        /// precedence over the serialized reference.
+        ///
+        /// The follow offset is derived as configured initial camera pose minus the player's pose at
+        /// this moment, so the configuration's initialCameraPosition must be an absolute world pose
+        /// near the player's start, not a relative offset.
+        /// </summary>
+        private int WireCameraFollow()
+        {
+            var follows = FindObjectsByType<PlayerCameraFollow>(FindObjectsInactive.Include);
+            var wired = 0;
+
+            foreach (var follow in follows)
+            {
+                follow.Configure(player, player.EffectiveConfiguration);
+                if (!follow.PlayerResolved) continue;
+
+                wired++;
+                if (!logSummary) continue;
+
+                var offset = follow.CameraFollowOffset;
+                Debug.Log("Camera '" + follow.gameObject.name + "' follow offset = " + offset +
+                          ". If that is not roughly the framing you want, adjust " +
+                          "initialCameraPosition in the player configuration: it is an absolute " +
+                          "world pose, and the offset is that pose minus the player's start position.",
+                    follow);
+            }
+
+            return wired;
         }
 
         private int MarkGroundColliders()

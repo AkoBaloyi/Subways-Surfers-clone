@@ -34,7 +34,7 @@ MonoBehaviour:
       m_Bits: 1
     groundContactTolerance: 0.1
     groundNormalThreshold: 0.6
-    initialCameraPosition: {x: -8, y: 5, z: 0}
+    initialCameraPosition: {x: -84, y: 6, z: -0.356}
     cameraSettleDuration: 0.25
     cameraFollowTolerance: 0.05
     inputNeutralThreshold: 0.2
