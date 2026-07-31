@@ -79,35 +79,35 @@ namespace SubwaySurfers.Integration.EditorTools
         {
             Undo.RecordObject(facade.transform, "Place player");
 
-            var reference = temp == null ? ReferencePlayerPosition : temp.transform.position;
+            // The rail marker is the authored reference for lane and height: it sits on the rail, at the
+            // middle lane. Using it directly avoids both traps hit earlier - a downward raycast that
+            // lands on a train roof, and the pose of a runtime clone hundreds of units down the track.
+            // Placing the player here at edit time means the scene is correct before play even starts,
+            // so it is verifiable in the Inspector rather than only through a runtime log.
+            var marker = FindAuthored("MiddleRailMarker");
+            Vector3 pose;
 
-            // TEMP_AutoRunner had no capsule, so it could sit embedded in the train geometry without
-            // consequence. A CharacterController cannot: Unity depenetrates an overlapping capsule along
-            // the shortest escape route, which on an X-forward track shoves the player sideways on Z and
-            // off the lanes entirely. So the lane and distance come from the reference, while the height
-            // is measured against the actual surface and left with a little clearance to settle onto.
-            var pose = reference;
-            var probeOrigin = new Vector3(reference.x, reference.y + 20f, reference.z);
-            RaycastHit surface;
-            if (Physics.Raycast(probeOrigin, Vector3.down, out surface, 60f, ~0,
-                    QueryTriggerInteraction.Ignore))
+            if (marker != null)
             {
-                pose = new Vector3(reference.x, surface.point.y + SpawnClearance, reference.z);
-                report.AppendLine("  surface under the start found on '" +
-                                  surface.collider.gameObject.name + "' at y=" +
-                                  surface.point.y.ToString("F3"));
+                var m = marker.transform.position;
+                pose = new Vector3(m.x, m.y + SpawnClearance, m.z);
+                report.AppendLine("  start taken from authored marker '" + marker.name + "' on '" +
+                                  (marker.transform.parent == null
+                                      ? "(no parent)"
+                                      : marker.transform.parent.name) + "'");
             }
             else
             {
-                report.AppendLine("  WARNING: no surface found under the start pose, using the " +
-                                  "reference height unchanged");
+                var reference = temp == null ? ReferencePlayerPosition : temp.transform.position;
+                pose = reference;
+                report.AppendLine("  WARNING: no MiddleRailMarker found, falling back to " +
+                                  (temp == null ? "the recorded pose" : "TempAutoPlayer's pose"));
             }
 
             facade.transform.position = pose;
             facade.transform.rotation = Quaternion.identity;
-            report.AppendLine("  player placed at " + pose + ", lane and distance from " +
-                              (temp == null ? "the recorded TEMP_AutoRunner pose" : "TempAutoPlayer") +
-                              ", height measured so the capsule starts clear of geometry");
+            report.AppendLine("  player placed at " + pose +
+                              "  <-- check this in the Inspector; z should be about -0.36");
         }
 
         private static void ParentCameraLikeTempRunner(
@@ -211,16 +211,49 @@ namespace SubwaySurfers.Integration.EditorTools
 
         private static void EnsureBridge(System.Text.StringBuilder report)
         {
-            if (Object.FindAnyObjectByType<MvpIntegrationBridge>() != null)
+            var bridge = Object.FindAnyObjectByType<MvpIntegrationBridge>();
+            if (bridge == null)
+            {
+                var host = new GameObject("MvpIntegrationBridge");
+                Undo.RegisterCreatedObjectUndo(host, "Create integration bridge");
+                bridge = Undo.AddComponent<MvpIntegrationBridge>(host);
+                report.AppendLine("  MvpIntegrationBridge created");
+            }
+            else
             {
                 report.AppendLine("  MvpIntegrationBridge already present");
+                if (!bridge.gameObject.activeSelf)
+                {
+                    Undo.RecordObject(bridge.gameObject, "Enable bridge");
+                    bridge.gameObject.SetActive(true);
+                    report.AppendLine("  bridge was DISABLED and has been enabled");
+                }
+            }
+
+            // A component saved before a serialized field existed can deserialize that field as the
+            // type's default rather than its initializer, which silently switches behaviour off. Writing
+            // the values explicitly removes that as a possibility.
+            var serialized = new SerializedObject(bridge);
+            SetBool(serialized, "snapToLaneOnStart", true, report);
+            SetBool(serialized, "markGroundAsRunningSurface", true, report);
+            SetBool(serialized, "logSummary", true, report);
+            serialized.ApplyModifiedProperties();
+        }
+
+        private static void SetBool(
+            SerializedObject serialized, string field, bool value, System.Text.StringBuilder report)
+        {
+            var property = serialized.FindProperty(field);
+            if (property == null)
+            {
+                report.AppendLine("  WARNING: bridge has no field '" + field + "'");
                 return;
             }
 
-            var host = new GameObject("MvpIntegrationBridge");
-            Undo.RegisterCreatedObjectUndo(host, "Create integration bridge");
-            Undo.AddComponent<MvpIntegrationBridge>(host);
-            report.AppendLine("  MvpIntegrationBridge created");
+            if (property.boolValue == value) return;
+
+            property.boolValue = value;
+            report.AppendLine("  bridge." + field + " was " + !value + ", set to " + value);
         }
 
         private static void PointTrackManagerAtPlayer(
@@ -265,6 +298,38 @@ namespace SubwaySurfers.Integration.EditorTools
                 if (t.gameObject.name.Trim() == name.Trim()) return t.gameObject;
             }
             return null;
+        }
+
+        /// <summary>
+        /// Finds the authored object of this name, skipping runtime clones. In edit mode there should be
+        /// no clones at all, but running setup while the game is playing would otherwise pick a spawned
+        /// segment that has already been moved down the track.
+        /// </summary>
+        private static GameObject FindAuthored(string name)
+        {
+            GameObject clone = null;
+            foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include))
+            {
+                if (t.gameObject.name.Trim() != name.Trim()) continue;
+
+                var isClone = false;
+                for (var walk = t; walk != null; walk = walk.parent)
+                {
+                    if (!walk.gameObject.name.EndsWith("(Clone)", System.StringComparison.Ordinal)) continue;
+                    isClone = true;
+                    break;
+                }
+
+                if (isClone)
+                {
+                    if (clone == null) clone = t.gameObject;
+                    continue;
+                }
+
+                return t.gameObject;
+            }
+
+            return clone;
         }
     }
 }
