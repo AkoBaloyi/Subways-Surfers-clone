@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using SubwaySurfers.Player;
 using SubwaySurfers.Player.Contracts;
 using SubwaySurfers.Player.Domain;
@@ -59,6 +60,7 @@ namespace SubwaySurfers.Integration
         private readonly HashSet<string> handledResetIds = new HashSet<string>();
         private bool subscribed;
         private int resetCounter;
+        private int identityCounter;
         private float lastAppliedSpeed = -1f;
 
         private void Awake()
@@ -247,8 +249,13 @@ namespace SubwaySurfers.Integration
             {
                 if (candidate.GetComponent<IEnvironmentObject>() != null) continue;
 
+                // A monotonic counter rather than an engine instance id: it is stable for the object's
+                // lifetime, unique across both kinds, and avoids depending on an engine identity API.
+                // Each tagged object is marked once, so one object cannot receive two identities.
+                identityCounter++;
                 var identity = candidate.AddComponent<MvpEnvironmentObject>();
-                identity.Configure(kind + "-" + candidate.GetInstanceID(), kind, value);
+                identity.Configure(
+                    kind + "-" + identityCounter.ToString(CultureInfo.InvariantCulture), kind, value);
                 marked++;
             }
 
