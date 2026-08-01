@@ -279,17 +279,44 @@ Validation entries are appended after each test execution with the test identifi
 - Provenance: this is a developer attestation, not an agent-observed run. The result XML was not pasted or captured, so the total, duration, and per-case timings for this specific re-run are not recorded here and must not be invented. The preceding entry holds the last set of numbers this log observed directly.
 - Evidence location: Unity Test Runner session on the developer's machine. Capturing a result artifact into the repository for a full passing run remains an open item.
 
+## Decisions — Cross-System Integration
+
+### 2026-07-31 — World basis for a track authored on a different axis
+
+- Acceptance criteria: 2.1, 2.2, 2.5, 3.6, 3.7, 3.8.
+- Affected assets: `Assets/Player/Runtime/CharacterControllerMotor.cs`.
+- Decision: map domain displacement and position onto the world through a configurable yaw at the motor, rather than change the movement rules or rotate the environment.
+- Rationale: the environment is authored X-forward with lanes on Z, and its track manager both spawns along `Vector3.right` and gates spawning on `player.position.x`. The domain is Z-forward with lanes on X, as Requirement 2.1 specifies. Rotating the environment would have broken its spawning, and changing the domain would have broken the specified rules and their tests. Confining the difference to the single point where displacement reaches Unity leaves the domain and every property test untouched.
+- Compatibility: yaw defaults to zero, the identity mapping, so all existing behaviour and expectations are unchanged. Only a scene that sets a non-zero yaw is affected.
+- Note: position needed the same treatment as displacement. The domain reads position components directly, so returning a raw world position fed forward distance in as lateral offset, and the lane planner tried to travel that distance sideways. Introducing a coordinate mapping requires auditing every value crossing the boundary, not only the obvious one.
+
+### 2026-07-31 — Contact pipeline was never assembled at runtime
+
+- Acceptance criteria: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6.
+- Affected assets: `Assets/Player/Runtime/PlayerControllerFacade.Movement.cs`.
+- Decision: the facade now constructs `EnvironmentContactTracker`, passes it to `PlayerResetService`, and configures `EnvironmentContactAdapter` with the obstruction mask.
+- Rationale: the facade previously passed `null` where the tracker belongs, and the adapter implements only `IPlayerResetParticipant`, so nothing ever called `Configure` on it. Its tracker stayed null and its mask zero, and sampling returned immediately. `EnvironmentContactTracker` was constructed only in tests. Hit and coin events could therefore never fire in any scene.
+- Test-strategy consequence: every contact component had passing Edit and Play Mode tests. Those tests construct the tracker themselves, so none of them exercised the assembly step. Component-level coverage cannot demonstrate that a runtime graph is wired; that needs a test that builds the player the way a scene does.
+
+### 2026-07-31 — Integration coupling kept outside the player assembly
+
+- Acceptance criteria: 1.3, 1.4, 1.6, 14.11, 14.12.
+- Affected assets: `Assets/Integration/` and its editor tools.
+- Decision: all coupling between the player, the game manager, and the environment lives in `Assets/Integration`, outside `Assets/Player`.
+- Rationale: the player runtime must keep compiling with zero references to production Rachel or Lucky types, which its isolation tests assert. Placing the bridge outside the player tree preserves that while still allowing a single component to know all three systems.
+- Note: the bridge applies running-surface, obstruction, and environment-identity markers at run time because the environment prefabs do not carry them, and creates a fixed-height run surface because the rails are thin visuals with no collider at rail height. Both are integration scaffolding, not a substitute for the environment owning its own markers.
+
 ## Unresolved Actions
 
 These are open and must not be reported as done.
 
-1. **Manual Test Checklist does not exist.** Criteria 12.14, 12.15, 12.16, 12.17, and 11.12 stay unevidenced until the checklist is authored, and 12.17 additionally requires execution by a named human tester on a real date. Authoring the checklist does not satisfy it.
-2. **GDD and TDD sections do not exist.** Criteria 13.1, 13.2, 13.3, 13.4, 13.6, 13.7, 13.8, 13.9, 13.14, and 13.15 stay unevidenced.
-3. **No result artifact is captured for the passing Play Mode run.** The 2026-07-31 re-run is recorded as a developer attestation without numbers. A machine-readable result file from a full passing Edit Mode and Play Mode run should be captured under `Assets/Player/Documentation` before handoff, so criterion 16.7 rests on an artifact rather than on recollection.
-4. **No review has been performed.** Criteria 13.13, 16.2, 16.3, 16.4, 16.6, and 16.9 require an independent reviewer, a Rachel contract and ownership review, and a Lucky identity, surface, obstruction, and ownership review. Reviewer name: _not assigned_. Review date: _not scheduled_. Disposition: _none recorded_. These must be entered by real humans and must not be inferred.
-5. **Criterion 16.7 is unmet.** A full passing suite plus required manual scenarios in Unity 6000.5.4f1 has not been achieved. The Edit Mode suite still carries its one by-design traceability failure, and the Play Mode suite has one unverified correction outstanding.
-6. **No test result artifact is captured in the repository.** Both 2026-07-31 runs were observed through the Unity Test Runner and their result XML stayed in the per-user application data folder. Copying a result artifact under `Assets/Player/Documentation` for a full passing run remains an open item.
-7. **`ProjectSettings/SceneTemplateSettings.json` is new and untracked.** Unity created it as a side effect of authoring `PlayerTestScene`. `ProjectSettings/**` is protected, no pre-existing setting was overwritten, and this feature did not edit it deliberately. Left in place pending a decision by the repository owner.
+1. **Neither suite has run since two player runtime changes on 2026-07-31.** The motor's world basis for position and displacement, and the facade's construction and wiring of the contact tracker, both changed player runtime code after the last recorded run. Editor diagnostics are clean, which demonstrates compilation and nothing more. Reset and contact behaviour are the most likely places for a regression. No claim of passing may be made for either suite until they are executed and observed. This is the highest-priority open item, because integration work now rests on it.
+2. **The Manual Test Checklist has not been executed.** `ManualTestChecklist.md` exists with 16 scenarios, which satisfies 12.14 through 12.16. Criterion 12.17 additionally requires execution by a named human tester on a real date, and criterion 11.12 requires repeatable observation of the full behaviour set. Authoring is not executing.
+3. **No review has been performed.** Criteria 13.13, 16.2, 16.3, 16.4, 16.6, and 16.9 require an independent reviewer, a Rachel contract and ownership review, and a Lucky identity, surface, obstruction, and ownership review. `ReviewEvidence.md` provides empty records for each. Reviewer name: _not assigned_. Review date: _not scheduled_. Disposition: _none recorded_. These must be entered by real humans and must not be inferred.
+4. **Criterion 16.7 is unmet.** A full passing suite plus the required manual scenarios in Unity 6000.5.4f1 has not been achieved. The Edit Mode suite also carries its one by-design traceability failure, which clears only as the remaining `Pending` rows close.
+5. **No machine-readable test result artifact is captured in the repository.** Every run so far was observed through the Unity Test Runner with its result XML left in the per-user application data folder, and one Play Mode run is recorded only as a developer attestation without numbers. A result file from a full passing Edit and Play Mode run should be captured under `Assets/Player/Documentation`, so criterion 16.7 rests on an artifact rather than recollection.
+6. **Integration scaffolding stands in for environment authoring.** The bridge applies running-surface, obstruction, and environment-identity markers at run time, and creates a fixed-height run surface, because the environment prefabs carry no markers and the rails are thin visuals with no collider at rail height. This is deliberate scaffolding for the MVP. Production prefabs should carry `IRunningSurface`, `IEnvironmentObstruction`, and `IEnvironmentObject` themselves, with a stable `EnvironmentObjectId` shared across every collider of a multi-collider object.
+7. **Slide has no production animation.** Visibility currently comes from a validation component that squashes the visual. A real build should drive the slide through the animator via `IAnimationReceiver`, which is the tested path.
 
 ### Closed since the previous revision
 
