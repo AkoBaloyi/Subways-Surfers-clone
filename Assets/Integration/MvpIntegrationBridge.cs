@@ -3,6 +3,7 @@ using System.Globalization;
 using SubwaySurfers.Player;
 using SubwaySurfers.Player.Contracts;
 using SubwaySurfers.Player.Domain;
+using SubwaySurfers.Player.Validation;
 using UnityEngine;
 
 namespace SubwaySurfers.Integration
@@ -33,6 +34,17 @@ namespace SubwaySurfers.Integration
         [Header("Failure")]
         [Tooltip("When enabled, hitting an obstacle ends the run. The player never decides this itself.")]
         [SerializeField] private bool hitEndsRun = true;
+
+        [Tooltip("Seconds to wait after a run ends before restarting. Zero leaves the player stopped, " +
+                 "which is right once a game manager owns the retry flow. A positive value keeps a " +
+                 "playtest moving while no game manager is in the scene.")]
+        [SerializeField] private float restartDelay = 2f;
+
+        [Header("Slide visibility")]
+        [Tooltip("Adds the validation slide visual to the player so a slide is visible. The controller " +
+                 "shrinks the collider, which is invisible on its own, and a real build would drive the " +
+                 "slide through an animator instead.")]
+        [SerializeField] private bool addSlideVisual = true;
 
         [Header("Speed")]
         [Tooltip("When enabled, the player's forward speed follows GameManager.gameSpeed, so the " +
@@ -151,6 +163,7 @@ namespace SubwaySurfers.Integration
             coins = MarkTagged(coinTag, EnvironmentObjectKind.Coin, coinValue);
 
             var cameras = WireCameraFollow();
+            EnsureSlideVisual();
 
             Subscribe();
 
@@ -262,13 +275,52 @@ namespace SubwaySurfers.Integration
             var failure = player.RequestFailure();
             if (logSummary)
             {
-                Debug.Log("Hit " + hit.EnvironmentObjectId + " -> failure " + failure.Status, this);
+                Debug.Log("RUN ENDED: hit '" + hit.EnvironmentObjectId + "' at " + hit.ContactPosition +
+                          ", failure command " + failure.Status +
+                          ". Player state is now " + player.CurrentState + ".", this);
             }
 
             var manager = GameManager.Instance;
             if (manager != null && manager.currentState == GameManager.GameState.Playing)
             {
                 manager.ChangeState(GameManager.GameState.GameOver);
+            }
+            else if (restartDelay > 0f)
+            {
+                // No game manager owns the retry flow yet, so the bridge restarts the run itself rather
+                // than leaving a playtest stuck on a stopped player. Reset is the player's own supported
+                // route back to its start state, and each attempt needs a fresh identifier.
+                StartCoroutine(RestartAfterDelay());
+            }
+        }
+
+        private System.Collections.IEnumerator RestartAfterDelay()
+        {
+            yield return new WaitForSeconds(restartDelay);
+
+            if (player == null || player.CurrentState != PlayerState.Failed) yield break;
+
+            RequestFreshReset();
+            if (snapToLaneOnStart) SnapToStartLane();
+            if (logSummary) Debug.Log("Run restarted after failure.", this);
+        }
+
+        /// <summary>
+        /// Adds the validation slide visual so a slide can be seen. The controller shrinks the collider
+        /// on slide entry, which is invisible by itself: a jump reads clearly because the transform moves,
+        /// while a slide changes only capsule dimensions. A production build should drive the slide through
+        /// an animator via the animation receiver instead of squashing the visual.
+        /// </summary>
+        private void EnsureSlideVisual()
+        {
+            if (!addSlideVisual) return;
+            if (player.GetComponentInChildren<ValidationSlideVisual>(true) != null) return;
+
+            player.gameObject.AddComponent<ValidationSlideVisual>();
+            if (logSummary)
+            {
+                Debug.Log("Slide visual added to the player, so sliding is visible. " +
+                          "Replace it with an animator-driven slide for a real build.", this);
             }
         }
 
