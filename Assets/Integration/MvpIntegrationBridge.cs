@@ -52,10 +52,29 @@ namespace SubwaySurfers.Integration
                  "starts intersecting geometry and cannot be depenetrated sideways off the lanes.")]
         [SerializeField] private float spawnClearance = 0.15f;
 
+        [Header("Run surface")]
+        [Tooltip("Creates a flat running surface at a fixed height that follows the player along the " +
+                 "track. The player then runs at a constant height instead of depending on whatever " +
+                 "geometry happens to have a collider, and trains and obstacles are free to be " +
+                 "obstacles rather than things to stand on.")]
+        [SerializeField] private bool useRunSurface = true;
+
+        [Tooltip("Height of the run surface. Left at zero, the start marker's own height is used, so " +
+                 "the player runs at rail level.")]
+        [SerializeField] private float runHeight;
+
+        [Tooltip("Width of the run surface across the lanes. Must cover every lane with margin.")]
+        [SerializeField] private float runSurfaceWidth = 14f;
+
+        [Tooltip("Length of the run surface along the track. It follows the player, so this only needs " +
+                 "to cover the distance travelled between frames plus a comfortable margin.")]
+        [SerializeField] private float runSurfaceLength = 400f;
+
         [Header("Runtime marker repair")]
         [Tooltip("Adds a running-surface marker to non-trigger colliders on the configured ground " +
-                 "layer, so the player can be grounded on environment geometry that predates the marker.")]
-        [SerializeField] private bool markGroundAsRunningSurface = true;
+                 "layer. Only needed when no run surface is used; with a run surface this would also " +
+                 "make trains and obstacles standable, which stops them acting as obstacles.")]
+        [SerializeField] private bool markGroundAsRunningSurface;
 
         [Tooltip("Seconds between marking passes over geometry near the player. The track spawns new " +
                  "segments as the player advances and those clones carry no running-surface marker, so " +
@@ -72,6 +91,15 @@ namespace SubwaySurfers.Integration
         [Tooltip("Colliders with this tag are given a Coin identity so contacts raise coin events.")]
         [SerializeField] private string coinTag = "Coin";
 
+        [Tooltip("Name fragments identifying obstacles, since the scene does not use tags for them. " +
+                 "Matched case-insensitively against the collider's object name.")]
+        [SerializeField]
+        private string[] obstacleNameFragments = { "obstacle", "train", "barricade", "barrier" };
+
+        [Tooltip("Name fragments identifying collectibles, matched the same way.")]
+        [SerializeField]
+        private string[] coinNameFragments = { "coin", "point", "star" };
+
         [Tooltip("Value reported for each collected coin.")]
         [SerializeField] private float coinValue = 1f;
 
@@ -84,12 +112,17 @@ namespace SubwaySurfers.Integration
         /// <summary>Reused buffer so the repeating marking pass allocates nothing per refresh.</summary>
         private readonly Collider[] nearbyGround = new Collider[256];
 
+        /// <summary>Thickness of the synthetic run surface. Deep enough that a capsule cannot tunnel it.</summary>
+        private const float RunSurfaceThickness = 2f;
+
         private bool subscribed;
         private int resetCounter;
         private int identityCounter;
         private float lastAppliedSpeed = -1f;
         private float nextMarkRefreshTime;
         private int totalSurfacesMarked;
+        private Transform runSurface;
+        private float resolvedRunHeight;
 
         private void Awake()
         {
@@ -109,9 +142,10 @@ namespace SubwaySurfers.Integration
             var obstacles = 0;
             var coins = 0;
 
-            // Marking has to happen before the snap measures a surface, because the surface the player
-            // will stand on must already be a valid running surface for grounding to take afterwards.
-            if (markGroundAsRunningSurface) surfaces = MarkGroundColliders();
+            // The surface the player stands on has to exist and be marked before the spawn measures a
+            // height, otherwise the probe finds nothing and the player starts above everything.
+            if (useRunSurface) surfaces = CreateRunSurface();
+            else if (markGroundAsRunningSurface) surfaces = MarkGroundColliders();
             if (snapToLaneOnStart) SnapToStartLane();
             obstacles = MarkTagged(obstacleTag, EnvironmentObjectKind.Obstacle, 0f);
             coins = MarkTagged(coinTag, EnvironmentObjectKind.Coin, coinValue);
@@ -147,19 +181,25 @@ namespace SubwaySurfers.Integration
         {
             if (player == null) return;
 
-            // Keep marking the ground ahead. Grounding requires a running-surface marker, and the track
-            // manager spawns segments continuously, so surfaces the player has not reached yet do not
-            // exist at startup. Without this the player runs onto unmarked track, grounding fails, and
-            // the settling displacement carries it down through the geometry.
-            if (markGroundAsRunningSurface && Time.time >= nextMarkRefreshTime)
+            // The run surface follows the player so it never runs out, which keeps the run height
+            // constant no matter what geometry the track spawns underneath.
+            KeepRunSurfaceUnderPlayer();
+
+            // The track spawns segments continuously, so obstacles and collectibles the player has not
+            // reached yet do not exist at startup and need identities before they can raise events.
+            if (Time.time >= nextMarkRefreshTime)
             {
                 nextMarkRefreshTime = Time.time + Mathf.Max(0.05f, markRefreshInterval);
-                var added = MarkGroundNearPlayer();
-                if (added > 0 && logSummary)
+
+                var identities = MarkEnvironmentNearPlayer();
+                var added = markGroundAsRunningSurface ? MarkGroundNearPlayer() : 0;
+
+                if ((identities > 0 || added > 0) && logSummary)
                 {
                     totalSurfacesMarked += added;
-                    Debug.Log("Marked " + added + " newly spawned running surfaces near the player, " +
-                              totalSurfacesMarked + " since the last startup pass.", this);
+                    Debug.Log("Marked " + identities + " new environment objects" +
+                              (added > 0 ? " and " + added + " running surfaces" : "") +
+                              " near the player.", this);
                 }
             }
 
@@ -409,6 +449,158 @@ namespace SubwaySurfers.Integration
             }
 
             return wired;
+        }
+
+        /// <summary>
+        /// Creates one flat running surface at a fixed height, spanning the lanes and following the player
+        /// along the track.
+        ///
+        /// This replaces marking arbitrary environment geometry as standable. That approach made the run
+        /// height depend on whatever happened to carry a collider, which is why the player descended when
+        /// the rail turned out to be a thin visual with the real ground two units below. It also made
+        /// trains standable, which stops them from being obstacles.
+        ///
+        /// With a dedicated surface the run height is constant and deliberate, grounding resolves every
+        /// frame, and jump and slide behave normally: the jump leaves this surface and lands back on it.
+        /// </summary>
+        private int CreateRunSurface()
+        {
+            if (runSurface != null) return 1;
+
+            var height = runHeight;
+            if (Mathf.Approximately(height, 0f))
+            {
+                var marker = FindByName(startMarkerName);
+                height = marker == null ? player.transform.position.y : marker.transform.position.y;
+            }
+            resolvedRunHeight = height;
+
+            var host = new GameObject("MvpRunSurface");
+            host.layer = FirstLayerInMask(player.EffectiveConfiguration.GroundLayerMask);
+
+            var box = host.AddComponent<BoxCollider>();
+            box.size = new Vector3(runSurfaceLength, RunSurfaceThickness, runSurfaceWidth);
+            host.AddComponent<MvpRunningSurface>();
+
+            // The top face sits at the run height, so a capsule whose feet are at that height stands on
+            // it exactly rather than sinking to the middle of a slab.
+            runSurface = host.transform;
+            runSurface.position = new Vector3(
+                player.transform.position.x,
+                height - RunSurfaceThickness * 0.5f,
+                MiddleLaneWorldZ());
+
+            if (logSummary)
+            {
+                Debug.Log("Run surface created at height " + height.ToString("F3") +
+                          ", " + runSurfaceWidth + " wide across the lanes and " + runSurfaceLength +
+                          " long, following the player. Trains and obstacles are no longer marked as " +
+                          "standable, so they can act as obstacles.", this);
+            }
+
+            return 1;
+        }
+
+        private void KeepRunSurfaceUnderPlayer()
+        {
+            if (runSurface == null) return;
+
+            runSurface.position = new Vector3(
+                player.transform.position.x,
+                resolvedRunHeight - RunSurfaceThickness * 0.5f,
+                runSurface.position.z);
+        }
+
+        /// <summary>
+        /// The world Z of the middle lane. Domain lateral maps to world through the motor's basis, so the
+        /// centre lane's configured lateral value is converted rather than assumed.
+        /// </summary>
+        private float MiddleLaneWorldZ()
+        {
+            var motor = player.GetComponent<CharacterControllerMotor>();
+            var lateral = new Vector3(player.EffectiveConfiguration.LaneCenters.y, 0f, 0f);
+            var world = motor == null ? lateral : motor.TrackBasis * lateral;
+            return world.z;
+        }
+
+        private static int FirstLayerInMask(int mask)
+        {
+            for (var layer = 0; layer < 32; layer++)
+            {
+                if ((mask & (1 << layer)) != 0) return layer;
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// Gives nearby trains, obstacles, and collectibles an environment identity so contacts raise
+        /// events. The scene does not tag them, so names are matched as well as tags. Anything already
+        /// identified, anything standable, and the player's own hierarchy are skipped, so the run surface
+        /// can never be mistaken for an obstacle.
+        /// </summary>
+        private int MarkEnvironmentNearPlayer()
+        {
+            var count = Physics.OverlapSphereNonAlloc(
+                player.transform.position, markRefreshRadius, nearbyGround, ~0,
+                QueryTriggerInteraction.Collide);
+
+            var marked = 0;
+            for (var index = 0; index < count; index++)
+            {
+                var collider = nearbyGround[index];
+                if (collider == null) continue;
+                if (collider.GetComponentInParent<PlayerControllerFacade>() != null) continue;
+                if (collider.GetComponent<IEnvironmentObject>() != null) continue;
+                if (collider.GetComponent<IRunningSurface>() != null) continue;
+
+                var name = collider.gameObject.name;
+                var kind = EnvironmentObjectKind.Obstacle;
+                var value = 0f;
+
+                if (MatchesAny(name, coinNameFragments) || IsTagged(collider, coinTag))
+                {
+                    kind = EnvironmentObjectKind.Coin;
+                    value = coinValue;
+                }
+                else if (!MatchesAny(name, obstacleNameFragments) && !IsTagged(collider, obstacleTag))
+                {
+                    continue;
+                }
+
+                identityCounter++;
+                var identity = collider.gameObject.AddComponent<MvpEnvironmentObject>();
+                identity.Configure(
+                    kind + "-" + identityCounter.ToString(CultureInfo.InvariantCulture), kind, value);
+                marked++;
+            }
+
+            return marked;
+        }
+
+        private static bool MatchesAny(string name, string[] fragments)
+        {
+            if (fragments == null) return false;
+
+            foreach (var fragment in fragments)
+            {
+                if (string.IsNullOrEmpty(fragment)) continue;
+                if (name.IndexOf(fragment, System.StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            }
+            return false;
+        }
+
+        private static bool IsTagged(Collider collider, string tag)
+        {
+            if (string.IsNullOrEmpty(tag)) return false;
+
+            try
+            {
+                return collider.gameObject.CompareTag(tag);
+            }
+            catch (UnityException)
+            {
+                return false;
+            }
         }
 
         /// <summary>
