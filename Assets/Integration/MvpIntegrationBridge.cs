@@ -112,6 +112,13 @@ namespace SubwaySurfers.Integration
         [SerializeField]
         private string[] coinNameFragments = { "coin", "point", "star" };
 
+        [Tooltip("Name fragments identifying geometry the player must slide under. These receive an " +
+                 "obstruction marker, which is what keeps the player down while the space above is " +
+                 "blocked, and an obstacle identity as well, so running into one while upright ends " +
+                 "the run.")]
+        [SerializeField]
+        private string[] obstructionNameFragments = { "slide", "overhead", "ceiling", "lowbar" };
+
         [Tooltip("Value reported for each collected coin.")]
         [SerializeField] private float coinValue = 1f;
 
@@ -602,10 +609,22 @@ namespace SubwaySurfers.Integration
                 var collider = nearbyGround[index];
                 if (collider == null) continue;
                 if (collider.GetComponentInParent<PlayerControllerFacade>() != null) continue;
-                if (collider.GetComponent<IEnvironmentObject>() != null) continue;
                 if (collider.GetComponent<IRunningSurface>() != null) continue;
 
                 var name = collider.gameObject.name;
+                var isObstruction = MatchesAny(name, obstructionNameFragments);
+
+                // Obstruction and identity are independent concerns, so each is applied if missing. A low
+                // bar needs both: the obstruction marker keeps the player down while it is overhead, and
+                // the obstacle identity ends the run if the player meets it standing up.
+                if (isObstruction && collider.GetComponent<IEnvironmentObstruction>() == null)
+                {
+                    collider.gameObject.AddComponent<MvpEnvironmentObstruction>();
+                    marked++;
+                }
+
+                if (collider.GetComponent<IEnvironmentObject>() != null) continue;
+
                 var kind = EnvironmentObjectKind.Obstacle;
                 var value = 0f;
 
@@ -614,7 +633,9 @@ namespace SubwaySurfers.Integration
                     kind = EnvironmentObjectKind.Coin;
                     value = coinValue;
                 }
-                else if (!MatchesAny(name, obstacleNameFragments) && !IsTagged(collider, obstacleTag))
+                else if (!isObstruction &&
+                         !MatchesAny(name, obstacleNameFragments) &&
+                         !IsTagged(collider, obstacleTag))
                 {
                     continue;
                 }
@@ -743,6 +764,17 @@ namespace SubwaySurfers.Integration
     /// <see cref="IRunningSurface"/> on its own prefabs.
     /// </summary>
     public sealed class MvpRunningSurface : MonoBehaviour, IRunningSurface { }
+
+    /// <summary>
+    /// Runtime obstruction marker, added by the bridge to geometry the player must slide under.
+    ///
+    /// Safe collider restoration only refuses to stand the player up when something implementing
+    /// <see cref="IEnvironmentObstruction"/> overlaps the standing capsule. Without this marker the
+    /// restoration query always succeeds, so the player pops upright underneath low geometry instead of
+    /// staying down until it has passed. Long term the environment system should carry this on its own
+    /// prefabs rather than having it applied at run time.
+    /// </summary>
+    public sealed class MvpEnvironmentObstruction : MonoBehaviour, IEnvironmentObstruction { }
 
     /// <summary>
     /// Runtime environment identity. Added by the bridge to tagged obstacles and coins so contacts raise
