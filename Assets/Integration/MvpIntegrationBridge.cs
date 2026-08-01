@@ -284,13 +284,38 @@ namespace SubwaySurfers.Integration
                 return;
             }
 
-            // The marker sits on the rail, which is exactly the height the player should stand at. An
-            // earlier version raycast downward from well above it and hit a train roof instead, leaving
-            // the player hanging metres in the air. Since Running only applies a small settling nudge
-            // rather than gravity, a player spawned in the air never falls and never becomes grounded,
-            // so the start height has to be right rather than approximately right.
+            // The marker gives the lane and the distance along the track, but not a standable height: the
+            // rail is a thin visual and the nearest collider is the ground well below it. Probing from
+            // just above the marker downward finds whatever surface actually exists there, whether that
+            // is a rail collider or the ground beneath. Probing from far above instead hits train roofs,
+            // and taking the marker height alone leaves the player above every collider.
+            //
+            // Height accuracy matters more than it looks: Running applies a small settling displacement
+            // rather than gravity, so a player left above the surface descends slowly forever instead of
+            // falling and landing, never becomes grounded, and can never jump or slide.
             var reference = marker.transform.position;
             var target = new Vector3(reference.x, reference.y + spawnClearance, reference.z);
+
+            RaycastHit surface;
+            var probe = new Vector3(reference.x, reference.y + 0.5f, reference.z);
+            if (Physics.Raycast(probe, Vector3.down, out surface, 30f,
+                    player.EffectiveConfiguration.GroundLayerMask, QueryTriggerInteraction.Ignore))
+            {
+                target = new Vector3(reference.x, surface.point.y + spawnClearance, reference.z);
+                if (logSummary)
+                {
+                    Debug.Log("Standable surface under the start lane is '" +
+                              surface.collider.gameObject.name + "' at y=" +
+                              surface.point.y.ToString("F3") + ", marker sits at y=" +
+                              reference.y.ToString("F3") + ". Spawning on the surface, not the marker.",
+                        this);
+                }
+            }
+            else if (logSummary)
+            {
+                Debug.LogWarning("No collider found beneath the start lane within 30 units, so the " +
+                                 "player will start at marker height and has nothing to stand on.", this);
+            }
 
             var controller = player.GetComponent<CharacterController>();
             var wasEnabled = controller != null && controller.enabled;
