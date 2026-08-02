@@ -106,3 +106,9 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# Player documentation is kept local rather than published to the repository.
+# The files remain on disk so Unity imports them and the traceability meta-test can
+# still resolve documented-rationale evidence by path.
+Assets/Player/**/*.md
+Assets/Player/**/*.md.meta
