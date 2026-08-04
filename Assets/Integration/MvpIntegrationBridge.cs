@@ -35,6 +35,21 @@ namespace SubwaySurfers.Integration
         [Tooltip("When enabled, hitting an obstacle ends the run. The player never decides this itself.")]
         [SerializeField] private bool hitEndsRun = true;
 
+        [Header("Grazing")]
+        [Tooltip("When enabled, barely clipping an obstacle is a warning instead of a crash, matching " +
+                 "the original game's stumble.")]
+        [SerializeField] private bool allowGrazing = true;
+
+        [Tooltip("How little overlap counts as a graze, in metres. A contact whose shallowest overlap " +
+                 "across the lane or the vertical is at or under this is treated as almost getting past.")]
+        [SerializeField] private float grazeTolerance = 0.18f;
+
+        [Tooltip("Stumble sound played on a graze. The warning has to be perceivable or it teaches " +
+                 "the player nothing.")]
+        [SerializeField] private AudioClip grazeClip;
+
+        [SerializeField] [Range(0f, 1f)] private float grazeVolume = 0.9f;
+
         [Tooltip("Seconds to wait after a run ends before restarting. Zero leaves the player stopped, " +
                  "which is right once a game manager owns the retry flow. A positive value keeps a " +
                  "playtest moving while no game manager is in the scene.")]
@@ -331,6 +346,22 @@ namespace SubwaySurfers.Integration
         /// </summary>
         private void OnPlayerHit(PlayerHitEvent hit)
         {
+            // A graze is a near miss the player should feel and survive. Classifying it here rather
+            // than in the player keeps the player reporting contacts and the coordinator deciding what
+            // they cost, which is the same split the failure decision already uses.
+            if (allowGrazing && IsGraze(hit))
+            {
+                GrazeCount++;
+                PlayGraze();
+                if (logSummary)
+                {
+                    Debug.Log("GRAZE: clipped '" + hit.EnvironmentObjectId +
+                              "' and stayed up. Total grazes this run: " + GrazeCount + ".", this);
+                }
+
+                return;
+            }
+
             if (!hitEndsRun) return;
 
             var failure = player.RequestFailure();
@@ -353,6 +384,92 @@ namespace SubwaySurfers.Integration
                 StartCoroutine(RestartAfterDelay());
             }
         }
+
+        /// <summary>Grazes survived during the current run. Reset when the run resets.</summary>
+        public int GrazeCount { get; private set; }
+
+        /// <summary>
+        /// A graze is a contact the player almost got past. It is measured as the shallowest overlap
+        /// between the player's capsule and the obstacle across the two axes the player can actually
+        /// dodge on: sideways, meaning they nearly changed lane in time, and vertical, meaning they
+        /// nearly cleared or ducked under it. The forward axis is deliberately excluded, because at the
+        /// moment of first contact the forward overlap is always small and every crash would read as a
+        /// graze.
+        ///
+        /// Bounds are used rather than physics penetration depth because the controller resolves and
+        /// pushes out of collisions during its own move, so by the time a contact is reported the real
+        /// penetration has already been partly undone.
+        /// </summary>
+        private bool IsGraze(PlayerHitEvent hit)
+        {
+            var controller = player.GetComponent<CharacterController>();
+            if (controller == null) return false;
+
+            var obstacle = hit.Obstacle as Component;
+            if (obstacle == null) return false;
+
+            if (!TryGetObstacleBounds(obstacle.gameObject, out var obstacleBounds)) return false;
+
+            var playerBounds = controller.bounds;
+
+            // Which world axis is forward depends on the track's orientation, so it is derived from the
+            // motor's basis rather than assumed.
+            var motor = player.GetComponent<CharacterControllerMotor>();
+            var forward = motor == null ? Vector3.forward : motor.TrackBasis * Vector3.forward;
+            var lateralAxis = Mathf.Abs(forward.x) > Mathf.Abs(forward.z) ? 2 : 0;
+
+            var lateralOverlap = OverlapOnAxis(playerBounds, obstacleBounds, lateralAxis);
+            var verticalOverlap = OverlapOnAxis(playerBounds, obstacleBounds, 1);
+            var shallowest = Mathf.Min(lateralOverlap, verticalOverlap);
+
+            return shallowest <= grazeTolerance;
+        }
+
+        private static bool TryGetObstacleBounds(GameObject candidate, out Bounds bounds)
+        {
+            bounds = new Bounds();
+            var found = false;
+
+            foreach (var collider in candidate.GetComponentsInChildren<Collider>(true))
+            {
+                if (collider == null || collider.isTrigger) continue;
+
+                if (!found)
+                {
+                    bounds = collider.bounds;
+                    found = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(collider.bounds);
+                }
+            }
+
+            return found;
+        }
+
+        private static float OverlapOnAxis(Bounds a, Bounds b, int axis)
+        {
+            var overlap = Mathf.Min(a.max[axis], b.max[axis]) - Mathf.Max(a.min[axis], b.min[axis]);
+            return Mathf.Max(0f, overlap);
+        }
+
+        private void PlayGraze()
+        {
+            if (grazeClip == null) return;
+
+            if (grazeSource == null)
+            {
+                grazeSource = gameObject.AddComponent<AudioSource>();
+                grazeSource.playOnAwake = false;
+                grazeSource.loop = false;
+                grazeSource.spatialBlend = 0f;
+            }
+
+            grazeSource.PlayOneShot(grazeClip, grazeVolume);
+        }
+
+        private AudioSource grazeSource;
 
         /// <summary>
         /// The run ends when the player actually stops, whatever stopped it. Keying game over off the
@@ -416,6 +533,8 @@ namespace SubwaySurfers.Integration
 
         private void RequestFreshReset()
         {
+            // Grazes are a per-run tally, so a new run starts clean.
+            GrazeCount = 0;
             resetCounter++;
             var id = "mvp-reset-" + resetCounter;
             if (!handledResetIds.Add(id)) return;

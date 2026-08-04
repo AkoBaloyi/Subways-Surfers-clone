@@ -2690,6 +2690,67 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 8952596434629587443, guid: a0edd4d3949a7b5448adb99ae6761bd0, type: 3}
   m_PrefabInstance: {fileID: 550343991}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &555053294
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 1088853556416010583, guid: 5831bd069a0fd3345ad03aec985547dd, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1088853556416010583, guid: 5831bd069a0fd3345ad03aec985547dd, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1088853556416010583, guid: 5831bd069a0fd3345ad03aec985547dd, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1088853556416010583, guid: 5831bd069a0fd3345ad03aec985547dd, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1088853556416010583, guid: 5831bd069a0fd3345ad03aec985547dd, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1088853556416010583, guid: 5831bd069a0fd3345ad03aec985547dd, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1088853556416010583, guid: 5831bd069a0fd3345ad03aec985547dd, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1088853556416010583, guid: 5831bd069a0fd3345ad03aec985547dd, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1088853556416010583, guid: 5831bd069a0fd3345ad03aec985547dd, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1088853556416010583, guid: 5831bd069a0fd3345ad03aec985547dd, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1089038776739909466, guid: 5831bd069a0fd3345ad03aec985547dd, type: 3}
+      propertyPath: m_Name
+      value: PlayerAudio
+      objectReference: {fileID: 0}
+    - target: {fileID: 1832570749900601720, guid: 5831bd069a0fd3345ad03aec985547dd, type: 3}
+      propertyPath: player
+      value: 
+      objectReference: {fileID: 1772607676}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 5831bd069a0fd3345ad03aec985547dd, type: 3}
 --- !u!4 &555993683 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2352447450892212451, guid: 5eec7dc82a8465745bb493915d555fc9, type: 3}
@@ -3036,7 +3097,7 @@ MonoBehaviour:
   trainPrefabs:
   - {fileID: 341184584}
   - {fileID: 625662929}
-  player: {fileID: 384981765}
+  player: {fileID: 1772607679}
   leftRailMarker: {fileID: 886019574}
   rightRailMarker: {fileID: 1728500565}
   trainSpeed: 20
@@ -3084,7 +3145,7 @@ MonoBehaviour:
   leftLane: {fileID: 482350295}
   middleLane: {fileID: 886019574}
   rightLane: {fileID: 1728500565}
-  player: {fileID: 384981765}
+  player: {fileID: 1772607679}
   movingTrainChance: 0.6
   spawnInterval: 10
   trainSpeed: 20
@@ -7736,6 +7797,8 @@ GameObject:
   m_Component:
   - component: {fileID: 1735413846}
   - component: {fileID: 1735413845}
+  - component: {fileID: 1735413848}
+  - component: {fileID: 1735413847}
   m_Layer: 0
   m_Name: MvpIntegrationBridge
   m_TagString: Untagged
@@ -7757,6 +7820,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SubwaySurfers.Integration.MvpIntegrationBridge
   player: {fileID: 1772607676}
   hitEndsRun: 1
+  allowGrazing: 1
+  grazeTolerance: 0.18
+  grazeClip: {fileID: 8300000, guid: 5f105b40560727341b3abea3c776d044, type: 3}
+  grazeVolume: 0.9
   restartDelay: 2
   addSlideVisual: 1
   driveSpeedFromGameManager: 1
@@ -7767,7 +7834,7 @@ MonoBehaviour:
   runHeight: 0
   runSurfaceWidth: 14
   runSurfaceLength: 400
-  markGroundAsRunningSurface: 1
+  markGroundAsRunningSurface: 0
   markRefreshInterval: 0.4
   markRefreshRadius: 60
   obstacleTag: Obstacle
@@ -7787,6 +7854,13 @@ MonoBehaviour:
   - ceiling
   - lowbar
   coinValue: 1
+  repairObstacleColliders: 1
+  trackSegmentRootFragments:
+  - segment
+  wholeObstacleRootFragments:
+  - train_type
+  - train_
+  obstacleColliderFit: 0.9
   logSummary: 1
 --- !u!4 &1735413846
 Transform:
@@ -7803,6 +7877,63 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1735413847
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1735413844}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ccebd4d0171f46c49ac0745b8f7dbac2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SubwaySurfers.Integration.StarSpawner
+  player: {fileID: 1772607676}
+  activeStars: 12
+  spacing: 22
+  leadDistance: 40
+  heightAboveRun: 0.9
+  starRadius: 0.45
+  starValue: 1
+  starsPerRow: 1
+--- !u!114 &1735413848
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1735413844}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 82d38bafeffc9bc4d9945355587f4554, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SubwaySurfers.Integration.RunPaceController
+  player: {fileID: 1772607676}
+  startSpeed: 12
+  slowPerStar: 6
+  brakeDecayPerSecond: 1.5
+  maximumBrake: 30
+  tiers:
+  - scoreThreshold: 0
+    maximumSpeed: 30
+    minimumSpeed: 12
+  - scoreThreshold: 250
+    maximumSpeed: 45
+    minimumSpeed: 18
+  - scoreThreshold: 750
+    maximumSpeed: 50
+    minimumSpeed: 20
+  - scoreThreshold: 2250
+    maximumSpeed: 60
+    minimumSpeed: 24
+  - scoreThreshold: 6750
+    maximumSpeed: 75
+    minimumSpeed: 30
+  - scoreThreshold: 20250
+    maximumSpeed: 95
+    minimumSpeed: 40
+  logTierChanges: 1
 --- !u!1 &1739431362
 GameObject:
   m_ObjectHideFlags: 0
@@ -9372,3 +9503,4 @@ SceneRoots:
   - {fileID: 307746476}
   - {fileID: 1391579739}
   - {fileID: 1735413846}
+  - {fileID: 555053294}
