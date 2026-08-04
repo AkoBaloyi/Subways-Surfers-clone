@@ -18,9 +18,16 @@ public class TrackManager : MonoBehaviour
     private float segmentLength;   // auto-calculated at Start, not typed in
     private float nextSpawnX = 0f; // always increases, never resets — this is what stopped my earlier infinite spawn/recycle loop
 
+    // Offset from the segment's root to the leading edge of its floor. The floor inside my prefab is
+    // authored a long way from the root, so spawning the root at nextSpawnX put the floor about 105
+    // units behind where the player actually was. Measuring this lets me place the root wherever it
+    // needs to be so that the FLOOR lands at nextSpawnX instead.
+    private float floorOffsetFromRoot;
+    private bool measuredFromFloor;
+
     void Start()
     {
-        segmentLength = MeasureSegmentLength();
+        MeasureSegment();
 
         if (segmentLength <= 0f)
         {
@@ -29,13 +36,65 @@ public class TrackManager : MonoBehaviour
         }
         else
         {
-            Debug.Log($"Auto-detected segment length: {segmentLength}");
+            Debug.Log($"Auto-detected segment length: {segmentLength}" +
+                      (measuredFromFloor ? $", measured from the floor, which sits {floorOffsetFromRoot} from the root." : ", measured from the markers."));
+        }
+
+        // Start the frontier at the END of the floor that already exists in the scene, so the first
+        // segment I spawn continues from it instead of starting back at world zero and leaving a gap
+        // the player runs across with nothing underneath them.
+        if (measuredFromFloor)
+        {
+            nextSpawnX = trackPrefab.transform.position.x + floorOffsetFromRoot + segmentLength;
         }
 
         for (int i = 0; i < startingSegments; i++)
         {
             SpawnSegment();
         }
+    }
+
+    // Works out how long a segment is and where its floor sits relative to its root.
+    // The floor is the reference rather than the markers, because the floor is what the player runs
+    // on: segments have to tile edge to edge on the floor, whatever the markers happen to say.
+    // Falls back to the Segment Start/End markers if there's no floor to find.
+    void MeasureSegment()
+    {
+        segmentLength = 0f;
+        floorOffsetFromRoot = 0f;
+        measuredFromFloor = false;
+
+        if (trackPrefab == null)
+        {
+            Debug.LogError("Track Prefab isn't assigned on TrackManager!");
+            return;
+        }
+
+        Renderer floor = FindFloorRenderer();
+        if (floor != null)
+        {
+            Bounds bounds = floor.bounds;
+            segmentLength = bounds.size.x;
+            floorOffsetFromRoot = bounds.min.x - trackPrefab.transform.position.x;
+            measuredFromFloor = true;
+            return;
+        }
+
+        Debug.LogWarning("No floor object found in the segment, so I'm falling back to the Segment Start/End markers. If the floor isn't authored near the segment root, segments won't line up under the player.");
+        segmentLength = MeasureSegmentLength();
+    }
+
+    Renderer FindFloorRenderer()
+    {
+        foreach (Transform t in trackPrefab.GetComponentsInChildren<Transform>(true))
+        {
+            if (t.name.Trim().ToLower() != "ground") continue;
+
+            Renderer renderer = t.GetComponent<Renderer>();
+            if (renderer != null) return renderer;
+        }
+
+        return null;
     }
 
     float MeasureSegmentLength()
@@ -95,14 +154,17 @@ public class TrackManager : MonoBehaviour
 
     void SpawnSegment()
     {
-        // I spawn exactly at nextSpawnX — which always sits right at the END
-        // of the previously spawned segment, so there's never a gap or overlap
-        Vector3 spawnPos = Vector3.right * nextSpawnX;
+        // nextSpawnX is where the FLOOR should begin, not where the root goes. Because the floor is
+        // authored away from the root, I place the root back by that same offset so the floor lands
+        // exactly where the previous segment's floor ended. Without this the roots tile correctly and
+        // the floors all land about 105 units behind the player, which is what used to leave them
+        // running over nothing.
+        Vector3 spawnPos = Vector3.right * (nextSpawnX - floorOffsetFromRoot);
         GameObject segment = Instantiate(trackPrefab, spawnPos, Quaternion.identity);
         spawnedSegments.Add(segment);
-        Debug.Log($"Spawned segment starting at X: {spawnPos.x}, ending at X: {spawnPos.x + segmentLength}");
+        Debug.Log($"Spawned segment: floor runs from X {nextSpawnX} to {nextSpawnX + segmentLength} (root placed at {spawnPos.x}).");
 
-        nextSpawnX += segmentLength; // move my spawn point forward to the new segment's end, ready for next time
+        nextSpawnX += segmentLength; // move my frontier forward to the new segment's end, ready for next time
     }
 
     void RecycleOldestIfNeeded()
