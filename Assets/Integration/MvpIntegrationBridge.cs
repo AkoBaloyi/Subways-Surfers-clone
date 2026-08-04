@@ -272,7 +272,16 @@ namespace SubwaySurfers.Integration
             // reached yet do not exist at startup and need identities before they can raise events.
             if (Time.time >= nextMarkRefreshTime)
             {
-                nextMarkRefreshTime = Time.time + Mathf.Max(0.05f, markRefreshInterval);
+                // An obstacle that has not been given an identity yet cannot raise a hit, so it is
+                // harmless to run into. The marking pass therefore has to keep ahead of the player, and
+                // the player's speed is no longer fixed: at the top pace tier they cover more ground in
+                // one refresh interval than the authored interval assumes. The interval is scaled so a
+                // pass always happens while anything about to be reached is still comfortably inside the
+                // marking radius, and never runs slower than the authored value.
+                var pace = Mathf.Max(1f, player.ForwardSpeed);
+                var safeInterval = markRefreshRadius * 0.25f / pace;
+                nextMarkRefreshTime = Time.time +
+                    Mathf.Clamp(safeInterval, 0.05f, Mathf.Max(0.05f, markRefreshInterval));
 
                 // Newly spawned segments and trains are repaired first, so the identity pass that works
                 // through overlap queries can actually see the colliders this just created.
