@@ -73,6 +73,18 @@ namespace SubwaySurfers.Player
         }
 
         /// <summary>
+        /// Whether a tracker has been bound. The facade assembles a tracker for a player that has none,
+        /// so a caller that supplied its own can be left with it rather than having it replaced.
+        /// </summary>
+        public bool IsConfigured { get { return tracker != null; } }
+
+        /// <summary>
+        /// The bound tracker, or null. Exposed so the reset sequence clears the same tracker this
+        /// adapter samples into, whoever bound it.
+        /// </summary>
+        public EnvironmentContactTracker Tracker { get { return tracker; } }
+
+        /// <summary>
         /// Binds the pure contact tracker that owns logical contact identity and the layer mask that
         /// selects environment geometry. An empty mask describes a world without environment geometry,
         /// which samples nothing.

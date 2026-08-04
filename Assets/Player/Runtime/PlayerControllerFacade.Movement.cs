@@ -216,17 +216,25 @@ namespace SubwaySurfers.Player
             var loop = EnsureMovementLoop();
             if (loop == null) return null;
 
+            var contacts = GetComponent<EnvironmentContactAdapter>();
+
             // The contact tracker owns logical contact identity and is what turns overlap samples into
             // hit and coin events. Until now it was only ever constructed by tests, so a real scene had
             // an unconfigured contact adapter: its tracker was null and its mask zero, and it returned
             // immediately from sampling. Every piece was tested in isolation and nothing assembled them.
-            contactTracker = new EnvironmentContactTracker(events);
+            //
+            // An adapter that already holds a tracker keeps it, and reset then clears that same tracker.
+            // A caller that bound its own owns the contact identity for this player, and replacing it
+            // would both lose the contacts already open and leave reset clearing a tracker nothing is
+            // sampling into.
+            contactTracker = contacts != null && contacts.IsConfigured
+                ? contacts.Tracker
+                : new EnvironmentContactTracker(events);
 
             resetService = new PlayerResetService(
                 EffectiveConfiguration, loop, events, null, contactTracker, null);
 
-            var contacts = GetComponent<EnvironmentContactAdapter>();
-            if (contacts != null)
+            if (contacts != null && !contacts.IsConfigured)
             {
                 // Contacts are selected by layer and then resolved by identity, so the mask only has to
                 // be wide enough to reach the environment. The obstruction mask is the environment-facing
