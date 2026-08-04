@@ -41,6 +41,7 @@ namespace SubwaySurfers.Integration.EditorTools
             ReportNamedObjects(sb);
             ReportLaneSpacing(sb);
             ReportGroundCandidates(sb);
+            ReportObstacles(sb);
             ReportPlayer(sb);
             ReportWiring(sb);
 
@@ -144,6 +145,100 @@ namespace SubwaySurfers.Integration.EditorTools
                                                 " size=" + c.bounds.size.ToString("F2")));
             }
             sb.AppendLine();
+        }
+
+        /// <summary>
+        /// Names identifying authored obstacles and collectibles in this project. Taken from the prefabs
+        /// under Assets/Prefab/Obstacles and the coin groups inside the track segment, so the report
+        /// covers what the segment actually contains rather than a guess at conventions.
+        /// </summary>
+        private static readonly string[] ObstacleNames =
+        {
+            "Block_Barrier", "Pedestrian_Barrier", "Water_Barricade", "Slide Barricade",
+            "Obstacle Left", "Obstacle Middle", "Obstacle Right",
+            "Coin Left", "Coin Middle", "Coin Right", "Train_Type"
+        };
+
+        /// <summary>
+        /// Reports whether the things the player is meant to hit can be hit at all.
+        ///
+        /// Three conditions have to hold together, and each one silently produces the same symptom of
+        /// nothing happening. There must be a collider, because a contact is found by overlapping the
+        /// player capsule and geometry without a collider is not there as far as physics is concerned.
+        /// There must be an environment identity on the object or an ancestor, because a contact without
+        /// one is discarded before it becomes an event. And geometry meant to be slid under needs an
+        /// obstruction marker, because that marker is the only reason the restoration query refuses to
+        /// stand the player back up.
+        ///
+        /// The obstacle prefabs in this project are imported with Generate Colliders off and add no
+        /// collider of their own, so as authored the first condition fails for every one of them.
+        /// </summary>
+        private static void ReportObstacles(StringBuilder sb)
+        {
+            sb.AppendLine("--- obstacles and collectibles: can they be hit? ---");
+
+            var reported = 0;
+            var withoutCollider = 0;
+            var withoutIdentity = 0;
+
+            foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include))
+            {
+                var candidate = t.gameObject;
+                if (!MatchesAny(candidate.name, ObstacleNames)) continue;
+
+                var colliders = candidate.GetComponentsInChildren<Collider>(true).Length;
+                var meshes = candidate.GetComponentsInChildren<MeshFilter>(true).Length;
+                var identity = candidate.GetComponentInParent<IEnvironmentObject>();
+                var obstruction = candidate.GetComponentInParent<IEnvironmentObstruction>() != null;
+
+                if (colliders == 0) withoutCollider++;
+                if (identity == null) withoutIdentity++;
+
+                reported++;
+                if (reported > 16) continue;
+
+                sb.AppendLine("  " + candidate.name.Trim() +
+                              " active=" + candidate.activeInHierarchy +
+                              " layer=" + candidate.layer +
+                              " colliders=" + colliders +
+                              " meshes=" + meshes +
+                              " identity=" + (identity == null ? "NONE" : identity.EnvironmentObjectId +
+                                                                          "/" + identity.Kind) +
+                              " obstruction=" + obstruction +
+                              " pos=" + V(t.position));
+            }
+
+            if (reported == 0)
+            {
+                sb.AppendLine("  none found. In edit mode the track has not spawned yet, so this is");
+                sb.AppendLine("  expected; enter play mode and run the report again.");
+                sb.AppendLine();
+                return;
+            }
+
+            sb.AppendLine("  matched " + reported + " objects" +
+                          (reported > 16 ? " (first 16 listed)" : "") +
+                          ", of which " + withoutCollider + " have no collider and " +
+                          withoutIdentity + " have no environment identity.");
+
+            if (withoutCollider > 0)
+            {
+                sb.AppendLine("  => the ones without a collider cannot raise a hit and cannot block");
+                sb.AppendLine("     standing up from a slide. Enable repairObstacleColliders on");
+                sb.AppendLine("     MvpIntegrationBridge, or turn on Generate Colliders in the obstacle");
+                sb.AppendLine("     model importers.");
+            }
+
+            sb.AppendLine();
+        }
+
+        private static bool MatchesAny(string name, string[] fragments)
+        {
+            foreach (var fragment in fragments)
+            {
+                if (name.IndexOf(fragment, System.StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            }
+            return false;
         }
 
         private static void ReportPlayer(StringBuilder sb)

@@ -81,8 +81,10 @@ public class GameManager : MonoBehaviour
         gameOverPanel.SetActive(newState == GameState.GameOver);
 
         // Manage Time Scale
-        if (newState == GameState.Playing) Time.timeScale = 1f;
-        else if (newState == GameState.Paused) Time.timeScale = 0f;
+        // Playing is the only state that advances time. MainMenu and GameOver freeze too, so the world
+        // does not run behind the main menu before Play is pressed and does not keep moving underneath
+        // the game over banner. The resume countdown uses realtime waits, so it still ticks at zero.
+        Time.timeScale = newState == GameState.Playing ? 1f : 0f;
     }
 
     // --- BUTTON CONTROLS ---

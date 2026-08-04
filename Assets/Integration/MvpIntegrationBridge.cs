@@ -122,11 +122,45 @@ namespace SubwaySurfers.Integration
         [Tooltip("Value reported for each collected coin.")]
         [SerializeField] private float coinValue = 1f;
 
+        [Header("Obstacle collider repair")]
+        [Tooltip("Fits box colliders to obstacle and train meshes that have none.\n\n" +
+                 "The obstacle prefabs under Assets/Prefab/Obstacles and the train prefabs under " +
+                 "Assets/Polyeler are imported with Generate Colliders off and add no collider of " +
+                 "their own, so as authored they are geometry the player passes straight through. No " +
+                 "collider means no overlap, which means no hit event and nothing for the slide " +
+                 "restoration query to find. Everything downstream was already correct and had nothing " +
+                 "to act on. The long-term fix belongs in the environment prefabs; this keeps the MVP " +
+                 "playable without editing imported assets.")]
+        [SerializeField] private bool repairObstacleColliders = true;
+
+        [Tooltip("Name fragments identifying a spawned track segment. Their children are searched for " +
+                 "obstacles and collectibles; the segment root itself is skipped so its ground and " +
+                 "lanes are never mistaken for obstacles.")]
+        [SerializeField] private string[] trackSegmentRootFragments = { "segment" };
+
+        [Tooltip("Name fragments identifying a root object that is an obstacle in its entirety, such " +
+                 "as a spawned train. These are matched against scene roots and are kept distinct from " +
+                 "the segment fragments so a segment is never treated as one solid obstacle.")]
+        [SerializeField] private string[] wholeObstacleRootFragments = { "train_type", "train_" };
+
+        [Tooltip("Fraction of the mesh bounds each fitted collider spans. Slightly under one keeps the " +
+                 "collider inside the visible silhouette, so the player is not hit by empty space and " +
+                 "the gap under a slide barricade stays passable.")]
+        [Range(0.1f, 1f)]
+        [SerializeField] private float obstacleColliderFit = 0.9f;
+
         [Header("Diagnostics")]
         [Tooltip("Logs what the bridge resolved and repaired. Leave on until the MVP is stable.")]
         [SerializeField] private bool logSummary = true;
 
         private readonly HashSet<string> handledResetIds = new HashSet<string>();
+
+        /// <summary>
+        /// Scene roots already repaired. The track spawns a segment as one finished object with every
+        /// obstacle already active, so a root needs one pass and never another. Destroyed entries are
+        /// pruned each refresh, which is how recycled segments leave the list.
+        /// </summary>
+        private readonly List<GameObject> repairedRoots = new List<GameObject>();
 
         /// <summary>Reused buffer so the repeating marking pass allocates nothing per refresh.</summary>
         private readonly Collider[] nearbyGround = new Collider[256];
@@ -140,6 +174,7 @@ namespace SubwaySurfers.Integration
         private float lastAppliedSpeed = -1f;
         private float nextMarkRefreshTime;
         private int totalSurfacesMarked;
+        private int totalCollidersFitted;
         private Transform runSurface;
         private float resolvedRunHeight;
 
@@ -169,6 +204,10 @@ namespace SubwaySurfers.Integration
             obstacles = MarkTagged(obstacleTag, EnvironmentObjectKind.Obstacle, 0f);
             coins = MarkTagged(coinTag, EnvironmentObjectKind.Coin, coinValue);
 
+            // The segments the track already spawned carry obstacles with no colliders at all, so they
+            // are repaired before the first movement update rather than a fraction of a second later.
+            var repaired = RepairSpawnedGeometry();
+
             var cameras = WireCameraFollow();
             EnsureSlideVisual();
 
@@ -178,10 +217,19 @@ namespace SubwaySurfers.Integration
             {
                 Debug.Log(string.Format(
                     "MvpIntegrationBridge ready. Running surfaces marked: {0}. Obstacles marked: {1}. " +
-                    "Coins marked: {2}. Cameras wired: {3}. GameManager present: {4}. " +
-                    "Player grounded: {5}.",
-                    surfaces, obstacles, coins, cameras,
+                    "Coins marked: {2}. Cameras wired: {3}. Geometry repairs: {4} " +
+                    "(colliders fitted: {5}). GameManager present: {6}. Player grounded: {7}.",
+                    surfaces, obstacles, coins, cameras, repaired, totalCollidersFitted,
                     GameManager.Instance != null, player.IsGrounded), this);
+
+                if (repairObstacleColliders && totalCollidersFitted == 0)
+                {
+                    Debug.LogWarning("No obstacle colliders were fitted. Either the obstacles already " +
+                                     "carry colliders, or no scene root matched " +
+                                     "trackSegmentRootFragments or wholeObstacleRootFragments. Without " +
+                                     "a collider an obstacle cannot raise a hit and cannot block " +
+                                     "standing up from a slide.", this);
+                }
 
                 if (surfaces == 0)
                 {
@@ -211,13 +259,17 @@ namespace SubwaySurfers.Integration
             {
                 nextMarkRefreshTime = Time.time + Mathf.Max(0.05f, markRefreshInterval);
 
+                // Newly spawned segments and trains are repaired first, so the identity pass that works
+                // through overlap queries can actually see the colliders this just created.
+                var repairs = RepairSpawnedGeometry();
                 var identities = MarkEnvironmentNearPlayer();
                 var added = markGroundAsRunningSurface ? MarkGroundNearPlayer() : 0;
 
-                if ((identities > 0 || added > 0) && logSummary)
+                if ((identities > 0 || added > 0 || repairs > 0) && logSummary)
                 {
                     totalSurfacesMarked += added;
-                    Debug.Log("Marked " + identities + " new environment objects" +
+                    Debug.Log("Repaired " + repairs + " newly spawned objects and marked " +
+                              identities + " new environment objects" +
                               (added > 0 ? " and " + added + " running surfaces" : "") +
                               " near the player.", this);
                 }
@@ -259,6 +311,7 @@ namespace SubwaySurfers.Integration
 
             player.Events.PlayerHit += OnPlayerHit;
             player.Events.CoinCollected += OnCoinCollected;
+            player.Events.StateChanged += OnPlayerStateChanged;
             subscribed = true;
         }
 
@@ -268,6 +321,7 @@ namespace SubwaySurfers.Integration
 
             player.Events.PlayerHit -= OnPlayerHit;
             player.Events.CoinCollected -= OnCoinCollected;
+            player.Events.StateChanged -= OnPlayerStateChanged;
             subscribed = false;
         }
 
@@ -287,18 +341,34 @@ namespace SubwaySurfers.Integration
                           ". Player state is now " + player.CurrentState + ".", this);
             }
 
+            // Game over is raised from the player's own stop, in OnPlayerStateChanged, not from here.
+            // A hit is only one way a run can end; keying off the player actually entering Failed also
+            // covers a failure the coordinator or anything else requests directly.
             var manager = GameManager.Instance;
-            if (manager != null && manager.currentState == GameManager.GameState.Playing)
-            {
-                manager.ChangeState(GameManager.GameState.GameOver);
-            }
-            else if (restartDelay > 0f)
+            if (manager == null && restartDelay > 0f)
             {
                 // No game manager owns the retry flow yet, so the bridge restarts the run itself rather
                 // than leaving a playtest stuck on a stopped player. Reset is the player's own supported
                 // route back to its start state, and each attempt needs a fresh identifier.
                 StartCoroutine(RestartAfterDelay());
             }
+        }
+
+        /// <summary>
+        /// The run ends when the player actually stops, whatever stopped it. Keying game over off the
+        /// Failed transition rather than off the hit event means a failure requested by the coordinator,
+        /// by a future hazard, or by a debug control shows the game over banner just the same.
+        /// The Playing guard makes it idempotent, since the coordinator leaves Playing as it triggers.
+        /// </summary>
+        private void OnPlayerStateChanged(PlayerStateChangedEvent changed)
+        {
+            if (changed.CurrentState != PlayerState.Failed) return;
+
+            var manager = GameManager.Instance;
+            if (manager == null || manager.currentState != GameManager.GameState.Playing) return;
+
+            manager.TriggerGameOver();
+            if (logSummary) Debug.Log("Player stopped, so the run is over. Game over banner raised.", this);
         }
 
         private System.Collections.IEnumerator RestartAfterDelay()
@@ -338,7 +408,7 @@ namespace SubwaySurfers.Integration
         private void OnCoinCollected(CoinCollectedEvent coin)
         {
             var manager = GameManager.Instance;
-            if (manager != null) manager.coins += Mathf.RoundToInt(coin.CollectibleValue);
+            if (manager != null) manager.AddCoins(Mathf.RoundToInt(coin.CollectibleValue));
 
             var collected = coin.Coin as Component;
             if (collected != null) collected.gameObject.SetActive(false);
@@ -609,7 +679,13 @@ namespace SubwaySurfers.Integration
                 var collider = nearbyGround[index];
                 if (collider == null) continue;
                 if (collider.GetComponentInParent<PlayerControllerFacade>() != null) continue;
-                if (collider.GetComponent<IRunningSurface>() != null) continue;
+
+                // Every marker the player resolves is found by walking a collider's ancestors, so the
+                // guards have to walk them too. Checking only the collider's own object would add a
+                // second identity beneath one already on a parent body, and two identities on one object
+                // means two logical contacts, which is exactly what contact deduplication exists to
+                // prevent.
+                if (collider.GetComponentInParent<IRunningSurface>() != null) continue;
 
                 var name = collider.gameObject.name;
                 var isObstruction = MatchesAny(name, obstructionNameFragments);
@@ -617,13 +693,13 @@ namespace SubwaySurfers.Integration
                 // Obstruction and identity are independent concerns, so each is applied if missing. A low
                 // bar needs both: the obstruction marker keeps the player down while it is overhead, and
                 // the obstacle identity ends the run if the player meets it standing up.
-                if (isObstruction && collider.GetComponent<IEnvironmentObstruction>() == null)
+                if (isObstruction && collider.GetComponentInParent<IEnvironmentObstruction>() == null)
                 {
                     collider.gameObject.AddComponent<MvpEnvironmentObstruction>();
                     marked++;
                 }
 
-                if (collider.GetComponent<IEnvironmentObject>() != null) continue;
+                if (collider.GetComponentInParent<IEnvironmentObject>() != null) continue;
 
                 var kind = EnvironmentObjectKind.Obstacle;
                 var value = 0f;
@@ -650,6 +726,158 @@ namespace SubwaySurfers.Integration
             return marked;
         }
 
+        /// <summary>
+        /// Gives newly spawned track geometry the colliders and markers it needs, one pass per scene root.
+        ///
+        /// This exists because the obstacles are authored without colliders. Their meshes are imported
+        /// with Generate Colliders off and the prefabs add no collider, so the player passed through
+        /// every barrier and every train. That also explains why safe slide restoration always
+        /// succeeded: the restoration query looks for obstruction geometry overlapping the standing
+        /// capsule, and there was no geometry to find. The contact pipeline and the restoration rule were
+        /// both working on an empty world.
+        ///
+        /// Discovery is by scene root rather than by overlap query, because an object with no collider is
+        /// invisible to a physics query and so cannot be found by the pass that marks identities.
+        /// </summary>
+        private int RepairSpawnedGeometry()
+        {
+            if (!repairObstacleColliders) return 0;
+
+            for (var index = repairedRoots.Count - 1; index >= 0; index--)
+            {
+                if (repairedRoots[index] == null) repairedRoots.RemoveAt(index);
+            }
+
+            var scene = gameObject.scene;
+            if (!scene.IsValid()) return 0;
+
+            var repaired = 0;
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                if (root == null || repairedRoots.Contains(root)) continue;
+
+                var wholeObstacle = MatchesAny(root.name, wholeObstacleRootFragments);
+                var segment = !wholeObstacle && MatchesAny(root.name, trackSegmentRootFragments);
+                if (!wholeObstacle && !segment) continue;
+
+                repairedRoots.Add(root);
+                repaired += wholeObstacle
+                    ? RepairGameplayObject(root, EnvironmentObjectKind.Obstacle, false)
+                    : RepairSegmentContents(root);
+            }
+
+            return repaired;
+        }
+
+        /// <summary>
+        /// Repairs the obstacles and collectibles inside one spawned segment. The segment root is skipped
+        /// deliberately: its name matches the obstacle fragments through the word "train", and treating
+        /// it as one object would turn the whole segment, ground and lanes included, into a single
+        /// obstacle that fails the run on contact.
+        /// </summary>
+        private int RepairSegmentContents(GameObject segmentRoot)
+        {
+            var repaired = 0;
+
+            foreach (var child in segmentRoot.GetComponentsInChildren<Transform>(true))
+            {
+                if (child == segmentRoot.transform) continue;
+
+                var candidate = child.gameObject;
+                var name = candidate.name;
+
+                var isObstruction = MatchesAny(name, obstructionNameFragments);
+                var isCoin = MatchesAny(name, coinNameFragments) || IsTagged(candidate, coinTag);
+                var isObstacle = isObstruction ||
+                                 MatchesAny(name, obstacleNameFragments) ||
+                                 IsTagged(candidate, obstacleTag);
+
+                if (!isCoin && !isObstacle) continue;
+
+                // Anything standable stays standable. Marking it as an obstacle would fail the run the
+                // moment the player touched the ground.
+                if (candidate.GetComponentInParent<IRunningSurface>() != null) continue;
+
+                repaired += RepairGameplayObject(
+                    candidate,
+                    isCoin ? EnvironmentObjectKind.Coin : EnvironmentObjectKind.Obstacle,
+                    isObstruction);
+            }
+
+            return repaired;
+        }
+
+        /// <summary>
+        /// Gives one object a collider if it has none, an obstruction marker if it is geometry to slide
+        /// under, and an environment identity if no ancestor already holds one.
+        ///
+        /// The identity goes on this object rather than on each collider, so a multi-mesh barricade is
+        /// one logical contact with one id. That is what keeps deduplication correct: several colliders
+        /// on one body must produce a single hit, not one per piece of geometry touched.
+        /// </summary>
+        private int RepairGameplayObject(
+            GameObject candidate,
+            EnvironmentObjectKind kind,
+            bool isObstruction)
+        {
+            var repaired = FitCollidersToMeshes(candidate);
+
+            if (isObstruction && candidate.GetComponentInParent<IEnvironmentObstruction>() == null)
+            {
+                candidate.AddComponent<MvpEnvironmentObstruction>();
+                repaired++;
+            }
+
+            if (candidate.GetComponentInParent<IEnvironmentObject>() == null)
+            {
+                identityCounter++;
+                var identity = candidate.AddComponent<MvpEnvironmentObject>();
+                identity.Configure(
+                    kind + "-" + identityCounter.ToString(CultureInfo.InvariantCulture),
+                    kind,
+                    kind == EnvironmentObjectKind.Coin ? coinValue : 0f);
+                repaired++;
+            }
+
+            return repaired;
+        }
+
+        /// <summary>
+        /// Adds one box collider per mesh, sized from that mesh's own bounds.
+        ///
+        /// One box per mesh rather than one box around the whole object, because a slide barricade is
+        /// built from separate pieces with a gap between them. A single box spanning the combined bounds
+        /// would fill that gap in and leave nothing to slide through, turning every slide obstacle into a
+        /// wall. Mesh bounds are already expressed in the mesh object's local space, which is the space a
+        /// box collider's centre and size use, so the fit needs no conversion and survives rotation and
+        /// scaling of the parents.
+        ///
+        /// An object that already has a collider anywhere in its hierarchy is left completely alone.
+        /// Authored colliders are the intended behaviour and this only fills a gap.
+        /// </summary>
+        private int FitCollidersToMeshes(GameObject candidate)
+        {
+            if (candidate.GetComponentInChildren<Collider>(true) != null) return 0;
+
+            var fit = Mathf.Clamp(obstacleColliderFit, 0.1f, 1f);
+            var fitted = 0;
+
+            foreach (var filter in candidate.GetComponentsInChildren<MeshFilter>(true))
+            {
+                var mesh = filter.sharedMesh;
+                if (mesh == null) continue;
+                if (filter.GetComponent<Collider>() != null) continue;
+
+                var box = filter.gameObject.AddComponent<BoxCollider>();
+                box.center = mesh.bounds.center;
+                box.size = mesh.bounds.size * fit;
+                fitted++;
+            }
+
+            totalCollidersFitted += fitted;
+            return fitted;
+        }
+
         private static bool MatchesAny(string name, string[] fragments)
         {
             if (fragments == null) return false;
@@ -664,11 +892,20 @@ namespace SubwaySurfers.Integration
 
         private static bool IsTagged(Collider collider, string tag)
         {
+            return IsTagged(collider.gameObject, tag);
+        }
+
+        /// <summary>
+        /// Whether the object carries this tag. An undefined tag throws rather than returning false, and
+        /// a scene that has not adopted the tag is not an error worth stopping a playtest for.
+        /// </summary>
+        private static bool IsTagged(GameObject candidate, string tag)
+        {
             if (string.IsNullOrEmpty(tag)) return false;
 
             try
             {
-                return collider.gameObject.CompareTag(tag);
+                return candidate.CompareTag(tag);
             }
             catch (UnityException)
             {
