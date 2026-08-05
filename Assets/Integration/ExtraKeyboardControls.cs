@@ -24,8 +24,8 @@ namespace SubwaySurfers.Integration
 
         [SerializeField]
         [Tooltip("Log each accepted or refused request, so it is obvious whether a key reached the " +
-                 "player at all.")]
-        private bool logRequests;
+                 "player at all and what the player said back. On by default while this is being set up.")]
+        private bool logRequests = true;
 
         private void Update()
         {
@@ -45,7 +45,11 @@ namespace SubwaySurfers.Integration
             if (jumpPressed)
             {
                 var result = player.RequestJump();
-                if (logRequests) Debug.Log("Jump key: " + result.Status + " (" + result.Reason + ")", this);
+                if (logRequests)
+                {
+                    Debug.Log("Jump key: " + result.Status + " (" + result.Reason + "). Player was " +
+                              player.CurrentState + ", grounded " + player.IsGrounded + ".", this);
+                }
             }
 
             var slidePressed =
@@ -55,7 +59,11 @@ namespace SubwaySurfers.Integration
             if (slidePressed)
             {
                 var result = player.RequestSlide();
-                if (logRequests) Debug.Log("Slide key: " + result.Status + " (" + result.Reason + ")", this);
+                if (logRequests)
+                {
+                    Debug.Log("Slide key: " + result.Status + " (" + result.Reason + "). Player was " +
+                              player.CurrentState + ", grounded " + player.IsGrounded + ".", this);
+                }
             }
         }
     }
