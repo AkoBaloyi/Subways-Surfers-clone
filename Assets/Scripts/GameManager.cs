@@ -46,10 +46,24 @@ public class GameManager : MonoBehaviour
         initialSpeed = gameSpeed;
     }
 
+    // Set just before a restart reloads the scene, so the fresh scene knows to drop straight back into
+    // the run instead of showing the main menu. Static because it has to survive the scene load.
+    private static bool restartRequested;
+
     private void Start()
     {
-        ChangeState(GameState.MainMenu);
         if (countdownText != null) countdownText.gameObject.SetActive(false);
+
+        if (restartRequested)
+        {
+            // Restart means play again, not go back to the menu. Reloading the scene ran Start again and
+            // sent the player to the main menu, which is why Restart looked like Main Menu.
+            restartRequested = false;
+            StartGame();
+            return;
+        }
+
+        ChangeState(GameState.MainMenu);
     }
 
     private void Update()
@@ -153,14 +167,16 @@ public class GameManager : MonoBehaviour
 
     public void RestartGame()
     {
-        Time.timeScale = 1f; 
+        Time.timeScale = 1f;
+        restartRequested = true;
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
     public void ReturnToMainMenu()
     {
         Time.timeScale = 1f;
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name); 
+        restartRequested = false;
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
    public void QuitGame()

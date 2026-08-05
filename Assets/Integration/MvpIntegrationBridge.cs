@@ -51,7 +51,12 @@ namespace SubwaySurfers.Integration
         [Header("Obstacle density")]
         [Tooltip("Chance that a spawned segment carries an obstacle group at all. The rest are left " +
                  "clear, so the player gets gaps to breathe in.")]
-        [SerializeField] [Range(0f, 1f)] private float obstacleSegmentChance = 0.45f;
+        [SerializeField] [Range(0f, 1f)] private float obstacleSegmentChance = 0.38f;
+
+        [Tooltip("Obstacles are only placed on floor that is at least this far ahead of the player, so " +
+                 "nothing ever appears in their face. A segment that is already closer than this is " +
+                 "left empty.")]
+        [SerializeField] private float obstacleMinimumLead = 45f;
 
         [Header("Grazing")]
         [Tooltip("When enabled, barely clipping an obstacle is a warning instead of a crash, matching " +
@@ -380,7 +385,11 @@ namespace SubwaySurfers.Integration
             // A graze is a near miss the player should feel and survive. Classifying it here rather
             // than in the player keeps the player reporting contacts and the coordinator deciding what
             // they cost, which is the same split the failure decision already uses.
-            if (allowGrazing && IsGraze(hit))
+            // A graze only makes sense if the player is still getting past. Now that the run also ends
+            // when forward progress stops, a shallow overlap on someone who is actually jammed against
+            // the obstacle is a crash, not a near miss, and letting it count as a graze would leave them
+            // stuck and alive until the stuck timer caught up.
+            if (allowGrazing && IsStillMovingForward() && IsGraze(hit))
             {
                 GrazeCount++;
                 PlayGraze();
@@ -442,13 +451,25 @@ namespace SubwaySurfers.Integration
 
             if (groups.Count == 0) return;
 
-            var carriesObstacles = UnityEngine.Random.value <= obstacleSegmentChance;
-            var chosen = carriesObstacles ? UnityEngine.Random.Range(0, groups.Count) : -1;
-
             var bounds = floor.bounds;
             var motor = player.GetComponent<CharacterControllerMotor>();
             var forward = motor == null ? Vector3.forward : motor.TrackBasis * Vector3.forward;
             var forwardIsX = Mathf.Abs(forward.x) > Mathf.Abs(forward.z);
+
+            // How far ahead is the near edge of this floor? Anything that is not comfortably ahead gets
+            // left empty, because activating an obstacle beside or just in front of the player gives them
+            // no chance to react and reads as the obstacle appearing out of nowhere.
+            var progress = ForwardProgress();
+            var nearEdge = Vector3.Dot(
+                forwardIsX
+                    ? new Vector3(bounds.min.x, 0f, bounds.center.z)
+                    : new Vector3(bounds.center.x, 0f, bounds.min.z),
+                forward);
+            var lead = Mathf.Abs(nearEdge - progress);
+
+            var carriesObstacles = lead >= obstacleMinimumLead &&
+                                   UnityEngine.Random.value <= obstacleSegmentChance;
+            var chosen = carriesObstacles ? UnityEngine.Random.Range(0, groups.Count) : -1;
 
             for (var index = 0; index < groups.Count; index++)
             {
@@ -535,6 +556,23 @@ namespace SubwaySurfers.Integration
                 Debug.Log("RUN ENDED: the player stopped moving forward, so they are blocked against " +
                           "something. Failure command " + failure.Status + ".", this);
             }
+        }
+
+        /// <summary>
+        /// Whether the player is still travelling forward at a reasonable share of their speed. Used to
+        /// tell a near miss from a crash: someone who is still moving got past, someone who is not did
+        /// not.
+        /// </summary>
+        private bool IsStillMovingForward()
+        {
+            if (player == null) return false;
+
+            var speed = player.ForwardSpeed;
+            var elapsed = Time.deltaTime;
+            if (speed <= 0.01f || elapsed <= 0f) return false;
+
+            var moved = ForwardProgress() - lastForwardProgress;
+            return moved >= speed * elapsed * stuckProgressFraction;
         }
 
         private float ForwardProgress()
@@ -1189,12 +1227,38 @@ namespace SubwaySurfers.Integration
         }
 
         /// <summary>
-        /// Whether the object carries this tag. An undefined tag throws rather than returning false, and
-        /// a scene that has not adopted the tag is not an error worth stopping a playtest for.
+        /// Whether the object carries this tag.
+        ///
+        /// Comparing against a tag the project has not defined logs an error every single call, and
+        /// catching the exception does not stop the log, so this probes each tag once, remembers the
+        /// answer, and never asks again. A scene that has not adopted these tags then falls back to
+        /// matching on names, which is what identifies the obstacles in practice anyway.
         /// </summary>
+        private static readonly Dictionary<string, bool> KnownTags = new Dictionary<string, bool>();
+
         private static bool IsTagged(GameObject candidate, string tag)
         {
             if (string.IsNullOrEmpty(tag)) return false;
+
+            bool defined;
+            if (!KnownTags.TryGetValue(tag, out defined))
+            {
+                try
+                {
+                    candidate.CompareTag(tag);
+                    defined = true;
+                }
+                catch (UnityException)
+                {
+                    defined = false;
+                    Debug.LogWarning("Tag '" + tag + "' is not defined in this project, so objects will " +
+                                     "be identified by name instead. Clear the tag field to silence this.");
+                }
+
+                KnownTags[tag] = defined;
+            }
+
+            if (!defined) return false;
 
             try
             {
