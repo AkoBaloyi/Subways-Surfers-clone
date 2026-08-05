@@ -35,6 +35,24 @@ namespace SubwaySurfers.Integration
         [Tooltip("When enabled, hitting an obstacle ends the run. The player never decides this itself.")]
         [SerializeField] private bool hitEndsRun = true;
 
+        [Header("Stuck detection")]
+        [Tooltip("Ends the run when the player stops making forward progress while they are supposed " +
+                 "to be running. This is the reliable way to catch a crash: whatever the player is " +
+                 "jammed against, being unable to move forward means the run is over.")]
+        [SerializeField] private bool endRunWhenStuck = true;
+
+        [Tooltip("How long the player has to be blocked before the run ends, in seconds.")]
+        [SerializeField] private float stuckSeconds = 0.3f;
+
+        [Tooltip("Fraction of the expected distance the player must cover to count as moving. Below " +
+                 "this they are treated as blocked.")]
+        [SerializeField] [Range(0.01f, 0.9f)] private float stuckProgressFraction = 0.2f;
+
+        [Header("Obstacle density")]
+        [Tooltip("Chance that a spawned segment carries an obstacle group at all. The rest are left " +
+                 "clear, so the player gets gaps to breathe in.")]
+        [SerializeField] [Range(0f, 1f)] private float obstacleSegmentChance = 0.45f;
+
         [Header("Grazing")]
         [Tooltip("When enabled, barely clipping an obstacle is a warning instead of a crash, matching " +
                  "the original game's stumble.")]
@@ -268,6 +286,10 @@ namespace SubwaySurfers.Integration
             // constant no matter what geometry the track spawns underneath.
             KeepRunSurfaceUnderPlayer();
 
+            // Checked every frame, because a blocked player has to end the run promptly rather than on
+            // the next marking pass.
+            CheckStuck();
+
             // The track spawns segments continuously, so obstacles and collectibles the player has not
             // reached yet do not exist at startup and need identities before they can raise events.
             if (Time.time >= nextMarkRefreshTime)
@@ -396,6 +418,137 @@ namespace SubwaySurfers.Integration
 
         /// <summary>Grazes survived during the current run. Reset when the run resets.</summary>
         public int GrazeCount { get; private set; }
+
+        /// <summary>
+        /// Puts a spawned segment's obstacle groups on its floor, and keeps at most one of them.
+        ///
+        /// The groups are authored at local positions spread across about 140 units, while the floor a
+        /// segment contributes is 10 units long, so every group except by coincidence lands somewhere the
+        /// player never runs. Three groups per 10 units would also be unplayably dense even if they were
+        /// placed correctly, so most segments are left clear and the rest carry one group somewhere along
+        /// their floor. Only the run axis is changed: each group keeps its own height and its own lane
+        /// offset, so the lane pattern Lucky authored still decides which lanes are blocked.
+        /// </summary>
+        private void PlaceObstaclesOnFloor(GameObject segmentRoot)
+        {
+            var floor = FindSegmentFloor(segmentRoot);
+            if (floor == null) return;
+
+            var groups = new List<Transform>();
+            foreach (var child in segmentRoot.GetComponentsInChildren<Transform>(true))
+            {
+                if (child.name.IndexOf("spawnpoint", StringComparison.OrdinalIgnoreCase) >= 0)
+                    groups.Add(child);
+            }
+
+            if (groups.Count == 0) return;
+
+            var carriesObstacles = UnityEngine.Random.value <= obstacleSegmentChance;
+            var chosen = carriesObstacles ? UnityEngine.Random.Range(0, groups.Count) : -1;
+
+            var bounds = floor.bounds;
+            var motor = player.GetComponent<CharacterControllerMotor>();
+            var forward = motor == null ? Vector3.forward : motor.TrackBasis * Vector3.forward;
+            var forwardIsX = Mathf.Abs(forward.x) > Mathf.Abs(forward.z);
+
+            for (var index = 0; index < groups.Count; index++)
+            {
+                var group = groups[index];
+                if (index != chosen)
+                {
+                    group.gameObject.SetActive(false);
+                    continue;
+                }
+
+                // Keep it off the very edges so an obstacle never straddles the join between segments.
+                var along = Mathf.Lerp(0.25f, 0.75f, UnityEngine.Random.value);
+                var position = group.position;
+                if (forwardIsX) position.x = Mathf.Lerp(bounds.min.x, bounds.max.x, along);
+                else position.z = Mathf.Lerp(bounds.min.z, bounds.max.z, along);
+
+                group.position = position;
+                group.gameObject.SetActive(true);
+            }
+        }
+
+        private static Renderer FindSegmentFloor(GameObject segmentRoot)
+        {
+            foreach (var child in segmentRoot.GetComponentsInChildren<Transform>(true))
+            {
+                if (child.name.Trim().ToLowerInvariant() != "ground") continue;
+
+                var renderer = child.GetComponent<Renderer>();
+                if (renderer != null) return renderer;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Ends the run when the player stops making forward progress while they should be running.
+        ///
+        /// Every other route to failure depends on a contact being detected, identified, and classified,
+        /// and each of those can silently miss. Being unable to move forward cannot miss: whatever the
+        /// player is jammed against, if the run is supposed to be moving and it is not, the run is over.
+        /// This is the backstop that makes hitting something reliably end the game.
+        /// </summary>
+        private void CheckStuck()
+        {
+            if (!endRunWhenStuck || player == null) { stuckTimer = 0f; return; }
+
+            var manager = GameManager.Instance;
+            if (manager != null && manager.currentState != GameManager.GameState.Playing)
+            {
+                stuckTimer = 0f;
+                lastForwardProgress = ForwardProgress();
+                return;
+            }
+
+            var state = player.CurrentState;
+            if (state != PlayerState.Running && state != PlayerState.Jumping && state != PlayerState.Sliding)
+            {
+                stuckTimer = 0f;
+                lastForwardProgress = ForwardProgress();
+                return;
+            }
+
+            var elapsed = Time.deltaTime;
+            var speed = player.ForwardSpeed;
+            if (elapsed <= 0f || speed <= 0.01f)
+            {
+                lastForwardProgress = ForwardProgress();
+                return;
+            }
+
+            var progress = ForwardProgress();
+            var moved = progress - lastForwardProgress;
+            lastForwardProgress = progress;
+
+            if (moved < speed * elapsed * stuckProgressFraction) stuckTimer += elapsed;
+            else stuckTimer = 0f;
+
+            if (stuckTimer < stuckSeconds) return;
+
+            stuckTimer = 0f;
+            var failure = player.RequestFailure();
+            if (logSummary)
+            {
+                Debug.Log("RUN ENDED: the player stopped moving forward, so they are blocked against " +
+                          "something. Failure command " + failure.Status + ".", this);
+            }
+        }
+
+        private float ForwardProgress()
+        {
+            if (player == null) return 0f;
+
+            var motor = player.GetComponent<CharacterControllerMotor>();
+            var forward = motor == null ? Vector3.forward : motor.TrackBasis * Vector3.forward;
+            return Vector3.Dot(player.transform.position, forward);
+        }
+
+        private float stuckTimer;
+        private float lastForwardProgress;
 
         /// <summary>
         /// A graze is a contact the player almost got past. It is measured as the shallowest overlap
@@ -542,8 +695,11 @@ namespace SubwaySurfers.Integration
 
         private void RequestFreshReset()
         {
-            // Grazes are a per-run tally, so a new run starts clean.
+            // Grazes are a per-run tally, so a new run starts clean. The stuck timer is cleared too,
+            // because the reset itself moves the player and must not read as being blocked.
             GrazeCount = 0;
+            stuckTimer = 0f;
+            lastForwardProgress = ForwardProgress();
             resetCounter++;
             var id = "mvp-reset-" + resetCounter;
             if (!handledResetIds.Add(id)) return;
@@ -889,6 +1045,16 @@ namespace SubwaySurfers.Integration
                 if (!wholeObstacle && !segment) continue;
 
                 repairedRoots.Add(root);
+
+                if (!wholeObstacle)
+                {
+                    // The obstacle groups inside a segment are authored across roughly 140 units while
+                    // the floor is only 10 long, so left alone they scatter obstacles far away from the
+                    // ground the player is actually running on. Placing them on the floor, and leaving
+                    // most segments empty, is what makes the run readable.
+                    PlaceObstaclesOnFloor(root);
+                }
+
                 repaired += wholeObstacle
                     ? RepairGameplayObject(root, EnvironmentObjectKind.Obstacle, false)
                     : RepairSegmentContents(root);
