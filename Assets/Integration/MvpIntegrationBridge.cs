@@ -437,8 +437,7 @@ namespace SubwaySurfers.Integration
             var groups = new List<Transform>();
             foreach (var child in segmentRoot.GetComponentsInChildren<Transform>(true))
             {
-                if (child.name.IndexOf("spawnpoint", StringComparison.OrdinalIgnoreCase) >= 0)
-                    groups.Add(child);
+                if (child.name.ToLowerInvariant().Contains("spawnpoint")) groups.Add(child);
             }
 
             if (groups.Count == 0) return;
