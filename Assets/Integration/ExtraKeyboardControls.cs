@@ -38,22 +38,25 @@ namespace SubwaySurfers.Integration
             var manager = GameManager.Instance;
             if (manager != null && manager.currentState != GameManager.GameState.Playing) return;
 
-            if (WasPressed(keyboard.wKey) || WasPressed(keyboard.upArrowKey))
+            var jumpPressed =
+                (keyboard.wKey != null && keyboard.wKey.wasPressedThisFrame) ||
+                (keyboard.upArrowKey != null && keyboard.upArrowKey.wasPressedThisFrame);
+
+            if (jumpPressed)
             {
                 var result = player.RequestJump();
                 if (logRequests) Debug.Log("Jump key: " + result.Status + " (" + result.Reason + ")", this);
             }
 
-            if (WasPressed(keyboard.sKey) || WasPressed(keyboard.downArrowKey))
+            var slidePressed =
+                (keyboard.sKey != null && keyboard.sKey.wasPressedThisFrame) ||
+                (keyboard.downArrowKey != null && keyboard.downArrowKey.wasPressedThisFrame);
+
+            if (slidePressed)
             {
                 var result = player.RequestSlide();
                 if (logRequests) Debug.Log("Slide key: " + result.Status + " (" + result.Reason + ")", this);
             }
-        }
-
-        private static bool WasPressed(KeyControl key)
-        {
-            return key != null && key.wasPressedThisFrame;
         }
     }
 }
